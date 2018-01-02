@@ -418,7 +418,7 @@ int nvmap_page_pool_init(struct nvmap_page_pool *pool, int flags)
 	if (pool->max_pages <= 0 || pool->max_pages >= info.totalram)
 		goto fail;
 	pool_size[flags] = pool->max_pages;
-	pr_info("nvmap %s page pool size=%d pages\n",
+	pr_info("nvmap %s page pool size=%d pages",
 		s_memtype_str[flags], pool->max_pages);
 	pool->page_array = vzalloc(sizeof(void *) * pool->max_pages);
 	pool->shrink_array = vzalloc(sizeof(struct page *) * pool->max_pages);
@@ -445,7 +445,7 @@ int nvmap_page_pool_init(struct nvmap_page_pool *pool, int flags)
 	}
 	si_meminfo(&info);
 	pr_info("nvmap pool = %s, highmem=%d, pool_size=%d,"
-		"totalram=%lu, freeram=%lu, totalhigh=%lu, freehigh=%lu\n",
+		"totalram=%lu, freeram=%lu, totalhigh=%lu, freehigh=%lu",
 		s_memtype_str[flags], highmem_pages, pool->max_pages,
 		info.totalram, info.freeram, info.totalhigh, info.freehigh);
 do_cpa:

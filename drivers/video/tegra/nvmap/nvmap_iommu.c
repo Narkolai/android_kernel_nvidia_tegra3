@@ -34,10 +34,9 @@ struct tegra_iovmm_area *tegra_iommu_create_vm(struct device *dev,
 		return NULL;
 
 	if (!req)
-		iova = dma_iova_alloc(dev, size);
-	else
-		iova = dma_iova_alloc_at(dev, req, size);
+		req = DMA_ANON_ADDR;
 
+	iova = arm_iommu_alloc_iova_at(dev, req, size);
 	if (iova == DMA_ERROR_CODE)
 		goto err_out;
 	area->iovm_start = iova;
@@ -53,85 +52,46 @@ err_out:
 
 void tegra_iommu_free_vm(struct tegra_iovmm_area *area)
 {
-	DEFINE_DMA_ATTRS(attrs);
-	dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &attrs);
-	dma_unmap_single_attrs(area->dev, area->iovm_start, area->iovm_length,
-			       0, &attrs);
+	int i;
+	size_t count = area->iovm_length >> PAGE_SHIFT;
+
+	for (i = 0; i < count; i++) {
+		dma_addr_t iova;
+
+		iova = area->iovm_start + i * PAGE_SIZE;
+		dma_unmap_page(area->dev, iova, PAGE_SIZE, DMA_NONE);
+	}
 	kfree(area);
 }
 
-void tegra_iommu_zap_vm(struct tegra_iovmm_area *area)
-{
-	DEFINE_DMA_ATTRS(attrs);
-	dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &attrs);
-	dma_set_attr(DMA_ATTR_SKIP_FREE_IOVA, &attrs);
-	dma_unmap_single_attrs(area->dev, area->iovm_start, area->iovm_length,
-			       0, &attrs);
-}
-
-#ifdef CONFIG_PLATFORM_ENABLE_IOMMU
-
-static inline int tegra_iommu_create_map(struct device *dev)
-{
-	return 0;
-}
-
-static inline void tegra_iommu_delete_map(struct device *dev)
-{
-}
-
-#else
-
-static int tegra_iommu_create_map(struct device *dev)
-{
-	int err;
-	struct dma_iommu_mapping *map;
-
-	map = arm_iommu_create_mapping(&platform_bus_type,
-				       TEGRA_IOMMU_BASE, TEGRA_IOMMU_SIZE, 0);
-	if (IS_ERR(map))
-		return PTR_ERR(map);
-
-	err = arm_iommu_attach_device(dev, map);
-	if (err) {
-		arm_iommu_release_mapping(map);
-		return err;
-	}
-	return 0;
-}
-
-static void tegra_iommu_delete_map(struct device *dev)
-{
-	arm_iommu_release_mapping(dev->archdata.mapping);
-}
-
-#endif
-
 struct tegra_iovmm_client *tegra_iommu_alloc_client(struct device *dev)
 {
+	struct dma_iommu_mapping *map;
 	struct tegra_iovmm_client *client;
-
-	if (WARN_ON(!dev))
-		return NULL;
 
 	client = kzalloc(sizeof(*client), GFP_KERNEL);
 	if (!client)
 		return NULL;
 
-	if (tegra_iommu_create_map(dev)) {
-		kfree(client);
-		return NULL;
-	}
+	map = arm_iommu_create_mapping(&platform_bus_type,
+		       TEGRA_IOMMU_BASE, TEGRA_IOMMU_SIZE, 0);
+	if (IS_ERR(map))
+		goto err_map;
 
+	if (arm_iommu_attach_device(dev, map))
+		goto err_attach;
 	client->dev = dev;
-
 	return client;
+
+err_attach:
+	arm_iommu_release_mapping(map);
+err_map:
+	kfree(client);
+	return NULL;
 }
 
 void tegra_iommu_free_client(struct tegra_iovmm_client *client)
 {
-	if (WARN_ON(!client))
-		return;
-	tegra_iommu_delete_map(client->dev);
+	arm_iommu_release_mapping(client->dev->archdata.mapping);
 	kfree(client);
 }

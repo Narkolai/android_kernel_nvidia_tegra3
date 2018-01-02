@@ -27,7 +27,6 @@
 #include <linux/kernel.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
-#include <linux/module.h>
 #include <linux/oom.h>
 #include <linux/platform_device.h>
 #include <linux/seq_file.h>
@@ -1260,7 +1259,7 @@ static int nvmap_probe(struct platform_device *pdev)
 		goto fail;
 	}
 #endif
-	dev->vm_rgn = alloc_vm_area(NVMAP_NUM_PTES * PAGE_SIZE, NULL);
+	dev->vm_rgn = alloc_vm_area(NVMAP_NUM_PTES * PAGE_SIZE);
 	if (!dev->vm_rgn) {
 		e = -ENOMEM;
 		dev_err(&pdev->dev, "couldn't allocate remapping region\n");
