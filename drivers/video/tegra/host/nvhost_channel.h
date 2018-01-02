@@ -31,7 +31,7 @@
 #define NVHOST_MAX_POWERGATE_IDS	2
 
 struct nvhost_master;
-struct platform_device;
+struct nvhost_device;
 struct nvhost_channel;
 struct nvhost_hwctx;
 
@@ -44,7 +44,7 @@ struct nvhost_channel {
 	void __iomem *aperture;
 	struct nvhost_hwctx *cur_ctx;
 	struct device *node;
-	struct platform_device *dev;
+	struct nvhost_device *dev;
 	struct cdev cdev;
 	struct nvhost_hwctx_handler *ctxhandler;
 	struct nvhost_cdma cdma;
@@ -62,7 +62,7 @@ int nvhost_channel_suspend(struct nvhost_channel *ch);
 int nvhost_channel_drain_read_fifo(struct nvhost_channel *ch,
 			u32 *ptr, unsigned int count, unsigned int *pending);
 
-int nvhost_channel_read_reg(struct nvhost_channel *channel,
+int nvhost_channel_read_3d_reg(struct nvhost_channel *channel,
 	struct nvhost_hwctx *hwctx,
 	u32 offset, u32 *value);
 

@@ -3,7 +3,7 @@
  *
  * Tegra Graphics Host Driver Entrypoint
  *
- * Copyright (c) 2010-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2010-2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -24,16 +24,9 @@
 #include <linux/uaccess.h>
 #include <linux/file.h>
 #include <linux/clk.h>
-#include <linux/hrtimer.h>
-#include <linux/module.h>
-#include <linux/pm_runtime.h>
-#include <linux/of.h>
-#include <linux/of_device.h>
-#include <linux/of_platform.h>
-#include <linux/vmalloc.h>
-#include <linux/mm.h>
 
 #include "dev.h"
+#include "bus.h"
 #include <trace/events/nvhost.h>
 
 #include <linux/nvhost.h>
@@ -44,14 +37,8 @@
 #include "nvhost_acm.h"
 #include "nvhost_channel.h"
 #include "nvhost_job.h"
-#include "chip_support.h"
-#include "t20/t20.h"
-#include "t30/t30.h"
-#include "t114/t114.h"
 
 #define DRIVER_NAME		"host1x"
-
-struct nvhost_master *nvhost;
 
 struct nvhost_ctrl_userctx {
 	struct nvhost_master *dev;
@@ -169,89 +156,75 @@ static int nvhost_ioctl_ctrl_module_mutex(struct nvhost_ctrl_userctx *ctx,
 	return err;
 }
 
+static int match_by_moduleid(struct device *dev, void *data)
+{
+	struct nvhost_device *ndev = to_nvhost_device(dev);
+	u32 id = (u32)data;
+
+	return id == ndev->moduleid;
+}
+
+static struct nvhost_device *get_ndev_by_moduleid(struct nvhost_master *host,
+		u32 id)
+{
+	struct device *dev = bus_find_device(&nvhost_bus_inst->nvhost_bus_type,
+			NULL, (void *)id, match_by_moduleid);
+
+	return dev ? to_nvhost_device(dev) : NULL;
+}
+
 static int nvhost_ioctl_ctrl_module_regrdwr(struct nvhost_ctrl_userctx *ctx,
 	struct nvhost_ctrl_module_regrdwr_args *args)
 {
 	u32 num_offsets = args->num_offsets;
 	u32 *offsets = args->offsets;
 	u32 *values = args->values;
-	u32 *vals;
-	u32 count;
-	int err;
-	struct platform_device *ndev;
+	u32 vals[64];
+	struct nvhost_device *ndev;
 
 	trace_nvhost_ioctl_ctrl_module_regrdwr(args->id,
 			args->num_offsets, args->write);
-
-	/* Check that there is something to read */
-	if (num_offsets == 0)
+	/* Check that there is something to read and that block size is
+	 * u32 aligned */
+	if (num_offsets == 0 || args->block_size & 3)
 		return -EINVAL;
 
-	ndev = nvhost_device_list_match_by_id(args->id);
+	ndev = get_ndev_by_moduleid(ctx->dev, args->id);
+	if (!ndev)
+		return -EINVAL;
 
-	BUG_ON(!ndev);
-
-	err = validate_max_size(ndev, args->block_size);
-	if (err)
-		return err;
-
-	count = args->block_size >> 2;
-
-	vals = kmalloc(args->block_size, GFP_KERNEL);
-	if (!vals) {
-		vals = vmalloc(args->block_size);
-		if (!vals)
-			return -ENOMEM;
-	}
-
-	if (args->write) {
-		while (num_offsets--) {
-			u32 offs;
-
-			if (copy_from_user((char *)vals,
-					(char __user *)values,
-					args->block_size)) {
-				kvfree(vals);
-				return -EFAULT;
+	while (num_offsets--) {
+		int err;
+		int remaining = args->block_size >> 2;
+		u32 offs;
+		if (get_user(offs, offsets))
+			return -EFAULT;
+		offsets++;
+		while (remaining) {
+			int batch = min(remaining, 64);
+			if (args->write) {
+				if (copy_from_user(vals, values,
+							batch*sizeof(u32)))
+					return -EFAULT;
+				err = nvhost_write_module_regs(ndev,
+						offs, batch, vals);
+				if (err)
+					return err;
+			} else {
+				err = nvhost_read_module_regs(ndev,
+						offs, batch, vals);
+				if (err)
+					return err;
+				if (copy_to_user(values, vals,
+							batch*sizeof(u32)))
+					return -EFAULT;
 			}
-			if (get_user(offs, offsets)) {
-				kvfree(vals);
-				return -EFAULT;
-			}
-			err = nvhost_write_module_regs(ndev,
-					offs, count, vals);
-			if (err) {
-				kvfree(vals);
-				return err;
-			}
-			offsets++;
-			values += count;
-		}
-	} else {
-		while (num_offsets--) {
-			u32 offs;
-			if (get_user(offs, offsets)) {
-				kvfree(vals);
-				return -EFAULT;
-			}
-			err = nvhost_read_module_regs(ndev,
-					offs, count, vals);
-			if (err) {
-				kvfree(vals);
-				return err;
-			}
-			if (copy_to_user((void __user *)values,
-					(void const *)vals,
-					args->block_size)) {
-				kvfree(vals);
-				return -EFAULT;
-			}
-			offsets++;
-			values += count;
+			remaining -= batch;
+			offs += batch*sizeof(u32);
+			values += batch;
 		}
 	}
 
-	kvfree(vals);
 	return 0;
 }
 
@@ -259,15 +232,6 @@ static int nvhost_ioctl_ctrl_get_version(struct nvhost_ctrl_userctx *ctx,
 	struct nvhost_get_param_args *args)
 {
 	args->value = NVHOST_SUBMIT_VERSION_MAX_SUPPORTED;
-	return 0;
-}
-
-static int nvhost_ioctl_ctrl_syncpt_read_max(struct nvhost_ctrl_userctx *ctx,
-	struct nvhost_ctrl_syncpt_read_args *args)
-{
-	if (args->id >= nvhost_syncpt_nb_pts(&ctx->dev->syncpt))
-		return -EINVAL;
-	args->value = nvhost_syncpt_read_max(&ctx->dev->syncpt, args->id);
 	return 0;
 }
 
@@ -311,9 +275,6 @@ static long nvhost_ctrlctl(struct file *filp,
 	case NVHOST_IOCTL_CTRL_GET_VERSION:
 		err = nvhost_ioctl_ctrl_get_version(priv, (void *)buf);
 		break;
-	case NVHOST_IOCTL_CTRL_SYNCPT_READ_MAX:
-		err = nvhost_ioctl_ctrl_syncpt_read_max(priv, (void *)buf);
-		break;
 	default:
 		err = -ENOTTY;
 		break;
@@ -332,31 +293,30 @@ static const struct file_operations nvhost_ctrlops = {
 	.unlocked_ioctl = nvhost_ctrlctl
 };
 
-static void power_on_host(struct platform_device *dev)
+static void power_on_host(struct nvhost_device *dev)
 {
-	struct nvhost_master *host = nvhost_get_private_data(dev);
-
+	struct nvhost_master *host = nvhost_get_drvdata(dev);
 	nvhost_syncpt_reset(&host->syncpt);
+	nvhost_intr_start(&host->intr, clk_get_rate(dev->clk[0]));
 }
 
-static int power_off_host(struct platform_device *dev)
+static int power_off_host(struct nvhost_device *dev)
 {
-	struct nvhost_master *host = nvhost_get_private_data(dev);
-
+	struct nvhost_master *host = nvhost_get_drvdata(dev);
 	nvhost_syncpt_save(&host->syncpt);
+	nvhost_intr_stop(&host->intr);
 	return 0;
 }
 
-static void clock_on_host(struct platform_device *dev)
+static void clock_on_host(struct nvhost_device *dev)
 {
-	struct nvhost_device_data *pdata = platform_get_drvdata(dev);
-	struct nvhost_master *host = nvhost_get_private_data(dev);
-	nvhost_intr_start(&host->intr, clk_get_rate(pdata->clk[0]));
+	struct nvhost_master *host = nvhost_get_drvdata(dev);
+	nvhost_intr_start(&host->intr, clk_get_rate(dev->clk[0]));
 }
 
-static int clock_off_host(struct platform_device *dev)
+static int clock_off_host(struct nvhost_device *dev)
 {
-	struct nvhost_master *host = nvhost_get_private_data(dev);
+	struct nvhost_master *host = nvhost_get_drvdata(dev);
 	nvhost_intr_stop(&host->intr);
 	return 0;
 }
@@ -396,7 +356,7 @@ fail:
 	return err;
 }
 
-struct nvhost_channel *nvhost_alloc_channel(struct platform_device *dev)
+struct nvhost_channel *nvhost_alloc_channel(struct nvhost_device *dev)
 {
 	BUG_ON(!host_device_op().alloc_nvhost_channel);
 	return host_device_op().alloc_nvhost_channel(dev);
@@ -434,47 +394,16 @@ static int __devinit nvhost_alloc_resources(struct nvhost_master *host)
 	return 0;
 }
 
-void nvhost_host1x_update_clk(struct platform_device *pdev)
-{
-	struct nvhost_master *host = nvhost_get_host(pdev);
-
-	actmon_op().update_sample_period(host);
-}
-
-static struct of_device_id tegra_host1x_of_match[] __devinitdata = {
-	{ .compatible = "nvidia,tegra20-host1x",
-		.data = (struct nvhost_device_data *)&t20_host1x_info },
-	{ .compatible = "nvidia,tegra30-host1x",
-		.data = (struct nvhost_device_data *)&t30_host1x_info },
-	{ .compatible = "nvidia,tegra114-host1x",
-		.data = (struct nvhost_device_data *)&t11_host1x_info },
-	{ },
-};
-
-static int __devinit nvhost_probe(struct platform_device *dev)
+static int __devinit nvhost_probe(struct nvhost_device *dev,
+	struct nvhost_device_id *id_table)
 {
 	struct nvhost_master *host;
 	struct resource *regs, *intr0, *intr1;
 	int i, err;
-	struct nvhost_device_data *pdata = NULL;
 
-	if (dev->dev.of_node) {
-		const struct of_device_id *match;
-
-		match = of_match_device(tegra_host1x_of_match, &dev->dev);
-		if (match)
-			pdata = (struct nvhost_device_data *)match->data;
-	} else
-		pdata = (struct nvhost_device_data *)dev->dev.platform_data;
-
-	WARN_ON(!pdata);
-	if (!pdata) {
-		dev_info(&dev->dev, "no platform data\n");
-		return -ENODATA;
-	}
-	regs = platform_get_resource(dev, IORESOURCE_MEM, 0);
-	intr0 = platform_get_resource(dev, IORESOURCE_IRQ, 0);
-	intr1 = platform_get_resource(dev, IORESOURCE_IRQ, 1);
+	regs = nvhost_get_resource(dev, IORESOURCE_MEM, 0);
+	intr0 = nvhost_get_resource(dev, IORESOURCE_IRQ, 0);
+	intr1 = nvhost_get_resource(dev, IORESOURCE_IRQ, 1);
 
 	if (!regs || !intr0 || !intr1) {
 		dev_err(&dev->dev, "missing required platform resources\n");
@@ -485,30 +414,15 @@ static int __devinit nvhost_probe(struct platform_device *dev)
 	if (!host)
 		return -ENOMEM;
 
-	nvhost = host;
-
+	/*  Register host1x device as bus master */
 	host->dev = dev;
 
-	/* Copy host1x parameters. The private_data gets replaced
-	 * by nvhost_master later */
-	memcpy(&host->info, pdata->private_data,
+	/* Copy host1x parameters */
+	memcpy(&host->info, dev->dev.platform_data,
 			sizeof(struct host1x_device_info));
 
-	pdata->finalize_poweron = power_on_host;
-	pdata->prepare_poweroff = power_off_host;
-	pdata->prepare_clockoff = clock_off_host;
-	pdata->finalize_clockon = clock_on_host;
-
-	pdata->pdev = dev;
-
-	/* set common host1x device data */
-	platform_set_drvdata(dev, pdata);
-
-	/* set private host1x device data */
-	nvhost_set_private_data(dev, host);
-
 	host->reg_mem = request_mem_region(regs->start,
-		resource_size(regs), dev->name);
+					resource_size(regs), dev->name);
 	if (!host->reg_mem) {
 		dev_err(&dev->dev, "failed to get host register memory\n");
 		err = -ENXIO;
@@ -535,6 +449,14 @@ static int __devinit nvhost_probe(struct platform_device *dev)
 		goto fail;
 	}
 
+	/*  Register host1x device as bus master */
+	host->dev = dev;
+
+	/*  Give pointer to host1x via driver */
+	nvhost_set_drvdata(dev, host);
+
+	nvhost_bus_add_host(host);
+
 	err = nvhost_syncpt_init(dev, &host->syncpt);
 	if (err)
 		goto fail;
@@ -551,20 +473,11 @@ static int __devinit nvhost_probe(struct platform_device *dev)
 	if (err)
 		goto fail;
 
-	for (i = 0; i < pdata->num_clks; i++)
-		clk_prepare_enable(pdata->clk[i]);
+	for (i = 0; i < host->dev->num_clks; i++)
+		clk_enable(host->dev->clk[i]);
 	nvhost_syncpt_reset(&host->syncpt);
-	for (i = 0; i < pdata->num_clks; i++)
-		clk_disable_unprepare(pdata->clk[i]);
-
-	pm_runtime_use_autosuspend(&dev->dev);
-	pm_runtime_set_autosuspend_delay(&dev->dev, 100);
-	pm_runtime_enable(&dev->dev);
-
-	nvhost_device_list_init();
-	err = nvhost_device_list_add(dev);
-	if (err)
-		goto fail;
+	for (i = 0; i < host->dev->num_clks; i++)
+		clk_disable(host->dev->clk[0]);
 
 	nvhost_debug_init(host);
 
@@ -579,18 +492,18 @@ fail:
 	return err;
 }
 
-static int __exit nvhost_remove(struct platform_device *dev)
+static int __exit nvhost_remove(struct nvhost_device *dev)
 {
-	struct nvhost_master *host = nvhost_get_private_data(dev);
+	struct nvhost_master *host = nvhost_get_drvdata(dev);
 	nvhost_intr_deinit(&host->intr);
 	nvhost_syncpt_deinit(&host->syncpt);
 	nvhost_free_resources(host);
 	return 0;
 }
 
-static int nvhost_suspend(struct platform_device *dev, pm_message_t state)
+static int nvhost_suspend(struct nvhost_device *dev, pm_message_t state)
 {
-	struct nvhost_master *host = nvhost_get_private_data(dev);
+	struct nvhost_master *host = nvhost_get_drvdata(dev);
 	int ret = 0;
 
 	ret = nvhost_module_suspend(host->dev);
@@ -599,34 +512,35 @@ static int nvhost_suspend(struct platform_device *dev, pm_message_t state)
 	return ret;
 }
 
-static int nvhost_resume(struct platform_device *dev)
+static int nvhost_resume(struct nvhost_device *dev)
 {
 	dev_info(&dev->dev, "resuming\n");
 	return 0;
 }
 
-static struct platform_driver platform_driver = {
+static struct nvhost_driver nvhost_driver = {
 	.probe = nvhost_probe,
 	.remove = __exit_p(nvhost_remove),
 	.suspend = nvhost_suspend,
 	.resume = nvhost_resume,
 	.driver = {
 		.owner = THIS_MODULE,
-		.name = DRIVER_NAME,
-#ifdef CONFIG_OF
-		.of_match_table = tegra_host1x_of_match,
-#endif
+		.name = DRIVER_NAME
 	},
+	.finalize_poweron = power_on_host,
+	.prepare_poweroff = power_off_host,
+	.finalize_clockon = clock_on_host,
+	.prepare_clockoff = clock_off_host,
 };
 
 static int __init nvhost_mod_init(void)
 {
-	return platform_driver_register(&platform_driver);
+	return nvhost_driver_register(&nvhost_driver);
 }
 
 static void __exit nvhost_mod_exit(void)
 {
-	platform_driver_unregister(&platform_driver);
+	nvhost_driver_unregister(&nvhost_driver);
 }
 
 /* host1x master device needs nvmap to be instantiated first.

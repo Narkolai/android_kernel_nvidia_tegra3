@@ -1,9 +1,9 @@
 /*
- * drivers/video/tegra/host/gr3d/pod_scaling.h
+ * drivers/video/tegra/host/bus.h
  *
- * Tegra Graphics Host Power-On-Demand Scaling
+ * Tegra Graphics Host bus API header
  *
- * Copyright (c) 2012, NVIDIA Corporation.
+ * Copyright (c) 2010-2012, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -18,17 +18,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef POD_SCALING_H
-#define POD_SCALING_H
+#ifndef __NVHOST_BUS_H
+#define __NVHOST_BUS_H
 
-struct platform_device;
-struct dentry;
+#include <linux/types.h>
+#include <linux/device.h>
 
-#define GET_TARGET_FREQ_DONTSCALE	1
+#include "chip_support.h"
 
-/* Suspend is called when powering down module */
-void nvhost_scale3d_suspend(struct platform_device *);
+struct nvhost_bus {
+	struct nvhost_chip_support *nvhost_chip_ops;
+	struct bus_type nvhost_bus_type;
+};
 
-extern const struct devfreq_governor nvhost_podgov;
+struct nvhost_bus *nvhost_bus_get(void);
+
+extern struct nvhost_bus *nvhost_bus_inst;
 
 #endif
