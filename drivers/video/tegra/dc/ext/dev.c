@@ -1,7 +1,7 @@
 /*
  * drivers/video/tegra/dc/dev.c
  *
- * Copyright (c) 2011-2013, NVIDIA CORPORATION, All rights reserved.
+ * Copyright (c) 2011-2012, NVIDIA CORPORATION, All rights reserved.
  *
  * Author: Robert Morell <rmorell@nvidia.com>
  * Some code based on fbdev extensions written by:
@@ -23,7 +23,6 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
-#include <linux/export.h>
 
 #include <video/tegra_dc_ext.h>
 
@@ -209,9 +208,7 @@ static int tegra_dc_ext_set_windowattr(struct tegra_dc_ext *ext,
 {
 	int err = 0;
 	struct tegra_dc_ext_win *ext_win = &ext->win[win->idx];
-#ifndef CONFIG_TEGRA_SIMULATION_PLATFORM
 	s64 timestamp_ns;
-#endif
 
 	if (flip_win->handle[TEGRA_DC_Y] == NULL) {
 		win->flags = 0;
@@ -234,10 +231,6 @@ static int tegra_dc_ext_set_windowattr(struct tegra_dc_ext *ext,
 		win->global_alpha = flip_win->attr.global_alpha;
 	else
 		win->global_alpha = 255;
-#if defined(CONFIG_TEGRA_DC_SCAN_COLUMN)
-	if (flip_win->attr.flags & TEGRA_DC_EXT_FLIP_FLAG_SCAN_COLUMN)
-		win->flags |= TEGRA_WIN_FLAG_SCAN_COLUMN;
-#endif
 	win->fmt = flip_win->attr.pixformat;
 	win->x.full = flip_win->attr.x;
 	win->y.full = flip_win->attr.y;
@@ -272,14 +265,12 @@ static int tegra_dc_ext_set_windowattr(struct tegra_dc_ext *ext,
 				"Window atrributes are invalid.\n");
 
 	if ((s32)flip_win->attr.pre_syncpt_id >= 0) {
-		nvhost_syncpt_wait_timeout_ext(ext->dc->ndev,
+		nvhost_syncpt_wait_timeout(
+				&nvhost_get_host(ext->dc->ndev)->syncpt,
 				flip_win->attr.pre_syncpt_id,
 				flip_win->attr.pre_syncpt_val,
 				msecs_to_jiffies(500), NULL);
 	}
-
-	if (err < 0)
-		return err;
 
 #ifndef CONFIG_TEGRA_SIMULATION_PLATFORM
 	timestamp_ns = timespec_to_ns(&flip_win->attr.timestamp);
@@ -287,8 +278,10 @@ static int tegra_dc_ext_set_windowattr(struct tegra_dc_ext *ext,
 	if (timestamp_ns) {
 		/* XXX: Should timestamping be overridden by "no_vsync" flag */
 		tegra_dc_config_frame_end_intr(win->dc, true);
+		trace_printk("%s:Before timestamp wait\n", win->dc->ndev->name);
 		err = wait_event_interruptible(win->dc->timestamp_wq,
 				tegra_dc_is_within_n_vsync(win->dc, timestamp_ns));
+		trace_printk("%s:After timestamp wait\n", win->dc->ndev->name);
 		tegra_dc_config_frame_end_intr(win->dc, false);
 	}
 #endif
@@ -633,11 +626,13 @@ static int tegra_dc_ext_flip(struct tegra_dc_ext_user *user,
 	for (i = 0; i < DC_N_WINDOWS; i++) {
 		u32 syncpt_max;
 		int index = args->win[i].index;
+		struct tegra_dc_win *win;
 		struct tegra_dc_ext_win *ext_win;
 
 		if (index < 0)
 			continue;
 
+		win = tegra_dc_get_window(ext->dc, index);
 		ext_win = &ext->win[index];
 
 		syncpt_max = tegra_dc_incr_syncpt_max(ext->dc, index);
@@ -792,42 +787,6 @@ static int tegra_dc_ext_set_lut(struct tegra_dc_ext_user *user,
 	return 0;
 }
 
-#if !defined(CONFIG_ARCH_TEGRA_2x_SOC) && !defined(CONFIG_ARCH_TEGRA_3x_SOC)
-static int tegra_dc_ext_set_cmu(struct tegra_dc_ext_user *user,
-				struct tegra_dc_ext_cmu *args)
-{
-	int i;
-	struct tegra_dc_cmu *cmu;
-	struct tegra_dc *dc = user->ext->dc;
-
-	cmu = kzalloc(sizeof(*cmu), GFP_KERNEL);
-	if (!cmu)
-		return -ENOMEM;
-
-	dc->pdata->cmu_enable = args->cmu_enable;
-	for (i = 0; i < 256; i++)
-		cmu->lut1[i] = args->lut1[i];
-
-	cmu->csc.krr = args->csc[0];
-	cmu->csc.kgr = args->csc[1];
-	cmu->csc.kbr = args->csc[2];
-	cmu->csc.krg = args->csc[3];
-	cmu->csc.kgg = args->csc[4];
-	cmu->csc.kbg = args->csc[5];
-	cmu->csc.krb = args->csc[6];
-	cmu->csc.kgb = args->csc[7];
-	cmu->csc.kbb = args->csc[8];
-
-	for (i = 0; i < 960; i++)
-		cmu->lut2[i] = args->lut2[i];
-
-	tegra_dc_update_cmu(dc, cmu);
-
-	kfree(cmu);
-	return 0;
-}
-#endif
-
 static u32 tegra_dc_ext_get_vblank_syncpt(struct tegra_dc_ext_user *user)
 {
 	struct tegra_dc *dc = user->ext->dc;
@@ -976,38 +935,6 @@ static long tegra_dc_ioctl(struct file *filp, unsigned int cmd,
 		return ret;
 	}
 
-	case TEGRA_DC_EXT_CURSOR_CLIP:
-	{
-		int args;
-		if (copy_from_user(&args, user_arg, sizeof(args)))
-			return -EFAULT;
-
-		return tegra_dc_ext_cursor_clip(user, &args);
-	}
-
-	case TEGRA_DC_EXT_SET_CMU:
-	{
-#if !defined(CONFIG_ARCH_TEGRA_2x_SOC) && !defined(CONFIG_ARCH_TEGRA_3x_SOC)
-		int ret;
-		struct tegra_dc_ext_cmu *args;
-
-		args = kzalloc(sizeof(*args), GFP_KERNEL);
-		if (!args)
-			return -ENOMEM;
-
-		if (copy_from_user(args, user_arg, sizeof(*args)))
-			return -EFAULT;
-
-		ret = tegra_dc_ext_set_cmu(user, args);
-
-		kfree(args);
-
-		return ret;
-#else
-		return -EACCES;
-#endif
-	}
-
 	default:
 		return -EINVAL;
 	}
@@ -1093,7 +1020,7 @@ static const struct file_operations tegra_dc_devops = {
 	.unlocked_ioctl =	tegra_dc_ioctl,
 };
 
-struct tegra_dc_ext *tegra_dc_ext_register(struct platform_device *ndev,
+struct tegra_dc_ext *tegra_dc_ext_register(struct nvhost_device *ndev,
 					   struct tegra_dc *dc)
 {
 	int ret;
