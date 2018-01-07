@@ -83,7 +83,6 @@ struct rt5631_priv {
 static int pw_ladc=0;
 static struct snd_soc_codec *rt5631_codec;
 static const u16 rt5631_reg[0x80];
-static int timesofbclk = 64;
 static unsigned int reg90;
 struct delayed_work poll_audio_work;
 int count_base = 1;
@@ -105,9 +104,6 @@ extern bool headset_alive;
 extern int asusAudiodec_i2c_write_data(char *data, int length);
 extern int asusAudiodec_i2c_read_data(char *data, int length);
 extern int asus_dock_in_state(void);
-
-module_param(timesofbclk, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-MODULE_PARM_DESC(timeofbclk, "relationship between bclk and fs");
 
 /**
  * rt5631_write_index - write index register of 2nd layer
@@ -824,7 +820,7 @@ static void hp_depop_mode2_onebit(struct snd_soc_codec *codec, int enable)
 				EN_CAP_FREE_DEPOP);
 	} else {
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_2, 0);
-		schedule_timeout_uninterruptible(msecs_to_jiffies(100));
+		msleep(100);
 	}
 
 	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
@@ -843,15 +839,15 @@ static void hp_mute_unmute_depop_onebit(struct snd_soc_codec *codec, int enable)
 	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
 	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
 	if (enable) {
-		schedule_timeout_uninterruptible(msecs_to_jiffies(10));
+		msleep(10);
 		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x307f);
 		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL, RT_L_MUTE | RT_R_MUTE, 0);
-		schedule_timeout_uninterruptible(msecs_to_jiffies(300));
+		msleep(300);
 
 	} else {
 		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL,
 			RT_L_MUTE | RT_R_MUTE, RT_L_MUTE | RT_R_MUTE);
-		schedule_timeout_uninterruptible(msecs_to_jiffies(100));
+		msleep(100);
 	}
 	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
 	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc);
@@ -876,7 +872,7 @@ static void hp_depop2(struct snd_soc_codec *codec, int enable)
 			PWR_CHARGE_PUMP | PWR_HP_L_AMP | PWR_HP_R_AMP);
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
 			POW_ON_SOFT_GEN | EN_DEPOP2_FOR_HP);
-		schedule_timeout_uninterruptible(msecs_to_jiffies(100));
+		msleep(100);
 		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
 			PWR_HP_DEPOP_DIS, PWR_HP_DEPOP_DIS);
 	} else {
@@ -884,14 +880,14 @@ static void hp_depop2(struct snd_soc_codec *codec, int enable)
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
 			POW_ON_SOFT_GEN | EN_MUTE_UNMUTE_DEPOP |
 			PD_HPAMP_L_ST_UP | PD_HPAMP_R_ST_UP);
-		schedule_timeout_uninterruptible(msecs_to_jiffies(75));
+		msleep(75);
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
 			POW_ON_SOFT_GEN | PD_HPAMP_L_ST_UP | PD_HPAMP_R_ST_UP);
 		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3, PWR_HP_DEPOP_DIS, 0);
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
 			POW_ON_SOFT_GEN | EN_DEPOP2_FOR_HP |
 			PD_HPAMP_L_ST_UP | PD_HPAMP_R_ST_UP);
-		schedule_timeout_uninterruptible(msecs_to_jiffies(80));
+		msleep(80);
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1, POW_ON_SOFT_GEN);
 		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
 			PWR_CHARGE_PUMP | PWR_HP_L_AMP | PWR_HP_R_AMP, 0);
@@ -914,13 +910,13 @@ static void hp_mute_unmute_depop(struct snd_soc_codec *codec, int enable)
 	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
 	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
 	if (enable) {
-		schedule_timeout_uninterruptible(msecs_to_jiffies(10));
+		msleep(10);
 		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x302f);
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
 			POW_ON_SOFT_GEN | EN_MUTE_UNMUTE_DEPOP |
 			EN_HP_R_M_UN_MUTE_DEPOP | EN_HP_L_M_UN_MUTE_DEPOP);
 		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL, RT_L_MUTE | RT_R_MUTE, 0);
-		schedule_timeout_uninterruptible(msecs_to_jiffies(160));
+		msleep(160);
 	} else {
 		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x302f);
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
@@ -928,7 +924,7 @@ static void hp_mute_unmute_depop(struct snd_soc_codec *codec, int enable)
 			EN_HP_R_M_UN_MUTE_DEPOP | EN_HP_L_M_UN_MUTE_DEPOP);
 		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL,
 			RT_L_MUTE | RT_R_MUTE, RT_L_MUTE | RT_R_MUTE);
-		schedule_timeout_uninterruptible(msecs_to_jiffies(150));
+		msleep(150);
 	}
 
 	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
@@ -1697,16 +1693,6 @@ static int get_coeff(int mclk, int rate, int timesofbclk)
 	return -EINVAL;
 }
 
-static int get_coeff_in_slave_mode(int mclk, int rate)
-{
-	return get_coeff(mclk, rate, timesofbclk);
-}
-
-static int get_coeff_in_master_mode(int mclk, int rate, int bclk)
-{
-	return get_coeff(mclk, rate, (bclk / rate));
-}
-
 static void rt5631_set_dmic_params(struct snd_soc_codec *codec,
 	struct snd_pcm_hw_params *params)
 {
@@ -1758,18 +1744,28 @@ static int rt5631_hifi_pcm_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct rt5631_priv *rt5631 = snd_soc_codec_get_drvdata(codec);
-	int stream = substream->stream, rate = params_rate(params), coeff;
+	int timesofbclk = 64, stream = substream->stream, coeff;
 	unsigned int iface = 0;
 
 	pr_debug("enter %s\n", __func__);
 
-	if (!rt5631->master)
-		coeff = get_coeff_in_slave_mode(rt5631->sysclk, rate);
+	rt5631->bclk_rate = snd_soc_params_to_bclk(params);
+	if (rt5631->bclk_rate < 0) {
+		dev_err(codec->dev, "Fail to get BCLK rate\n");
+		return rt5631->bclk_rate;
+	}
+	rt5631->rx_rate = params_rate(params);
+
+	if (rt5631->master)
+		coeff = get_coeff(rt5631->sysclk, rt5631->rx_rate,
+			rt5631->bclk_rate / rt5631->rx_rate);
 	else
-		coeff = get_coeff_in_master_mode(rt5631->sysclk, rate,
-					rate * timesofbclk);
-	if (coeff < 0)
-		pr_err("%s: get coeff err!\n", __func__);
+		coeff = get_coeff(rt5631->sysclk, rt5631->rx_rate,
+					timesofbclk);
+	if (coeff < 0) {
+		dev_err(codec->dev, "Fail to get coeff\n");
+		return -EINVAL;
+	}
 
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
@@ -1892,8 +1888,7 @@ static int rt5631_codec_set_dai_pll(struct snd_soc_dai *codec_dai, int pll_id,
 			freq_out == codec_master_pll_div[i].pll_out) {
 				snd_soc_write(codec, RT5631_PLL_CTRL,
 					codec_master_pll_div[i].reg_val);
-				schedule_timeout_uninterruptible(
-					msecs_to_jiffies(20));
+				msleep(20);
 				snd_soc_write(codec, RT5631_GLOBAL_CLK_CTRL,
 					SYSCLK_SOUR_SEL_PLL);
 				rt5631->pll_used_flag = 1;
@@ -1906,8 +1901,7 @@ static int rt5631_codec_set_dai_pll(struct snd_soc_dai *codec_dai, int pll_id,
 			freq_out == codec_slave_pll_div[i].pll_out) {
 				snd_soc_write(codec, RT5631_PLL_CTRL,
 					codec_slave_pll_div[i].reg_val);
-				schedule_timeout_uninterruptible(
-					msecs_to_jiffies(20));
+				msleep(20);
 				snd_soc_write(codec, RT5631_GLOBAL_CLK_CTRL,
 					SYSCLK_SOUR_SEL_PLL |
 					PLLCLK_SOUR_SEL_BITCLK);
@@ -2145,7 +2139,7 @@ static int rt5631_resume(struct snd_soc_codec *codec)
 	printk(KERN_INFO "%s+ #####\n", __func__);
 	snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
 		PWR_VREF | PWR_MAIN_BIAS, PWR_VREF | PWR_MAIN_BIAS);
-	schedule_timeout_uninterruptible(msecs_to_jiffies(110));
+	msleep(110);
 	snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
 		PWR_FAST_VREF_CTRL, PWR_FAST_VREF_CTRL);
 	rt5631_reg_init(codec);
