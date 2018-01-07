@@ -75,6 +75,8 @@ struct rt5631_priv {
 	int codec_version;
 	int master;
 	int sysclk;
+	int rx_rate;
+	int bclk_rate;
 	int dmic_used_flag;
 	int eq_mode;
 	int pll_used_flag;
@@ -83,7 +85,6 @@ struct rt5631_priv {
 static int pw_ladc=0;
 static struct snd_soc_codec *rt5631_codec;
 static const u16 rt5631_reg[0x80];
-static unsigned int reg90;
 struct delayed_work poll_audio_work;
 int count_base = 1;
 int count_100 = 0;
