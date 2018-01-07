@@ -2136,291 +2136,6 @@ static struct miscdevice i2c_audio_device = {
 	.fops = &audio_codec_fops,
 };
 
-static ssize_t read_audio_dock_status(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-        char data1[2] = {0x05, 0x01};
-	char data3[8] = {0};
-	int i = 0;
-        asusAudiodec_i2c_write_data(data1, 2);
-        asusAudiodec_i2c_read_data(data3, 8);
-        for( i = 0; i < 8; i++){
-             printk("index: %d data = %d\n", i, data3[i]);
-        }
-        return sprintf(buf, "use command: dmesg -c \n");
-}
-DEVICE_ATTR(read_audio_dock, S_IRUGO, read_audio_dock_status, NULL);
-
-
-static ssize_t unmute1_audio_dock_status(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-        char data1[2] = {0x01, 0x01};
-
-        asusAudiodec_i2c_write_data(data1, 2);
-
-        return sprintf(buf, "unmute\n");
-}
-DEVICE_ATTR(unmute1_audio_dock, S_IRUGO, unmute1_audio_dock_status, NULL);
-
-static ssize_t unmute2_audio_dock_status(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-        char data1[2] = {0x02, 0x01};
-
-        asusAudiodec_i2c_write_data(data1, 2);
-
-        return sprintf(buf, "unmute\n");
-}
-DEVICE_ATTR(unmute2_audio_dock, S_IRUGO, unmute2_audio_dock_status, NULL);
-
-
-static ssize_t unmute3_audio_dock_status(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-        char data1[2] = {0x03, 0x01};
-
-        asusAudiodec_i2c_write_data(data1, 2);
-
-        return sprintf(buf, "unmute\n");
-}
-DEVICE_ATTR(unmute3_audio_dock, S_IRUGO, unmute3_audio_dock_status, NULL);
-
-
-static ssize_t unmute4_audio_dock_status(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-        char data1[2] = {0x04, 0x01};
-
-        asusAudiodec_i2c_write_data(data1, 2);
-
-        return sprintf(buf, "unmute\n");
-}
-DEVICE_ATTR(unmute4_audio_dock, S_IRUGO, unmute4_audio_dock_status, NULL);
-
-static ssize_t unmute_audio_dock_status(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-        char data1[2] = {0x00, 0x01};
-
-        asusAudiodec_i2c_write_data(data1, 2);
-
-        return sprintf(buf, "unmute\n");
-}
-DEVICE_ATTR(unmute_audio_dock, S_IRUGO, unmute_audio_dock_status, NULL);
-
-static ssize_t mute_audio_dock_status(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-        char data1[2] = {0xff, 0x01};
-
-        asusAudiodec_i2c_write_data(data1, 2);
-
-        return sprintf(buf, "mute\n");
-}
-DEVICE_ATTR(mute_audio_dock, S_IRUGO, mute_audio_dock_status, NULL);
-
-static ssize_t read_audio_codec_status(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", audio_codec_status);
-}
-DEVICE_ATTR(audio_codec_status, S_IRUGO, read_audio_codec_status, NULL);
-
-static ssize_t rt5631_index_reg_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	#define IDX_REG_FMT "%02x: %04x\n"
-	#define IDX_REG_LEN 9
-	unsigned int val;
-	int cnt = 0, i;
-
-	cnt += sprintf(buf, "RT5631 index register\n");
-	for (i = 0; i < 0x55; i++) {
-		if (cnt + IDX_REG_LEN >= PAGE_SIZE - 1)
-			break;
-		val = rt5631_read_index(rt5631_codec, i);
-		if (!val)
-			continue;
-		cnt += sprintf(buf + cnt, IDX_REG_FMT, i, val);
-	}
-
-	if (cnt >= PAGE_SIZE)
-		cnt = PAGE_SIZE - 1;
-
-	return cnt;
-}
-static DEVICE_ATTR(index_reg, 0444, rt5631_index_reg_show, NULL);
-
-static u32 StrtoInt(const char *str)
-{
-	u32 i,CodecValue=0;
-
-	printk("strtoin=%s \n",str);
-	if(!str)
-	{
-		printk("%s(): NULL pointer input\n", __FUNCTION__);
-		return -1;
-	}
-	for(i=0; *str; str++)
-	{
-		if((*str>='A' && *str<='F')||(*str>='a' && *str<='f')||(*str>='0' && *str<='9'))
-		{
-			 CodecValue*=0x10;
-			if(*str>='A' && *str<='F')
-				CodecValue += *str-'A'+10;
-			else if(*str>='a' && *str<='f')
-				CodecValue += *str-'a'+10;
-			else if(*str>='0' && *str<='9')
-				CodecValue += *str-'0';
-		}
-		else
-				return CodecValue;
-	}
-	return CodecValue;
-}
-
-
-enum
-{
-	WRITE_REG=0,
-	READ_REG,
-	WRITE_INDEX,
-	READ_INDEX,
-	BAD_FORMAT,
-};
-
-static u32 last_command=0;
-static u32 read_codec_reg=0;
-static u32 read_codec_value=0;
-
-
-//static ssize_t rt5631_codec_reg_show(struct class *cls, char *_buf)
-static ssize_t rt5631_codec_reg_show(struct device *dev,struct device_attribute *attr ,char *buf)
-{
-	if(last_command==READ_REG)
-	{
-		return sprintf(buf,"%04x\n",read_codec_value);
-	}
-	if(last_command==READ_INDEX)
-	{
-		return sprintf(buf,"%04x\n",read_codec_value);
-	}
-
-	return sprintf(buf,"read fail\n");
-}
-
-//static ssize_t rt5631_codec_reg_store(struct class *cls, const char *_buf, size_t _count)
-static ssize_t rt5631_codec_reg_store(struct device *dev,struct device_attribute *attr, const char *buf,
- size_t count)
-{
-	const char * p=buf;
-	u32 reg=0, val=0;
-	printk("store buf=%s \n",buf);
-
-	if(!strncmp(buf, "readr", strlen("readr")))
-	{
-		p+=strlen("readr");
-		read_codec_reg=(u32)StrtoInt(p);
-		read_codec_value=rt5631_read(rt5631_codec, read_codec_reg);
-		last_command=READ_REG;
-		printk("%s(): get 0x%04x=0x%04x\n", __FUNCTION__, read_codec_reg, val);
-	}
-	else if(!strncmp(buf, "writer", strlen("writer")))
-	{
-		p+=strlen("writer");
-		reg=(u32)StrtoInt(p);
-		p=strchr(buf, '=');
-		if(p)
-		{
-			++ p;
-			val=(u32)StrtoInt(p);
-			rt5631_write(rt5631_codec, reg, val);
-			last_command=WRITE_REG;
-			printk("%s(): set 0x%04x=0x%04x\n", __FUNCTION__, reg, val);
-		}
-		else
-		{
-			last_command=BAD_FORMAT;
-			printk("%s(): Bad string format input!\n", __FUNCTION__);
-		}
-	}
-	else if(!strncmp(buf, "writei", strlen("writei")))
-	{
-		p+=strlen("writei");
-		reg=(u32)StrtoInt(p);
-		p=strchr(buf, '=');
-		if(p)
-		{
-			++ p;
-			val=(u32)StrtoInt(p);
-			rt5631_write(rt5631_codec, 0x6a, reg);
-			rt5631_write(rt5631_codec, 0x6c, val);
-			last_command=WRITE_INDEX;
-			printk("%s(): set 0x%04x=0x%04x\n", __FUNCTION__, reg, val);
-		}
-		else
-		{
-			last_command=BAD_FORMAT;
-			printk("%s(): Bad string format input!\n", __FUNCTION__);
-		}
-	}
-	else if(!strncmp(buf, "readi", strlen("readi")))
-	{
-		p+=strlen("readi");
-		read_codec_reg=(u32)StrtoInt(p);
-		rt5631_write(rt5631_codec, 0x6a, read_codec_reg);
-		read_codec_value=rt5631_read(rt5631_codec, 0x6c);
-		last_command=READ_INDEX;
-		printk("%s(): get 0x%04x=0x%04x\n", __FUNCTION__, read_codec_reg, val);
-	}
-	else
-	{
-		last_command=BAD_FORMAT;
-		printk("%s(): Bad string format input!\n", __FUNCTION__);
-	}
-
-	return count;
-}
-
-static DEVICE_ATTR(rt_codec_reg, S_IRUGO, rt5631_codec_reg_show, rt5631_codec_reg_store);
-
-#define RT5631_STEREO_RATES SNDRV_PCM_RATE_8000_96000
-#define RT5631_FORMAT	(SNDRV_PCM_FMTBIT_S16_LE | \
-			SNDRV_PCM_FMTBIT_S20_3LE | \
-			SNDRV_PCM_FMTBIT_S24_LE | \
-			SNDRV_PCM_FMTBIT_S8)
-
-
-static struct snd_soc_dai_ops rt5631_ops = {
-	.hw_params = rt5631_hifi_pcm_params,
-	.set_fmt = rt5631_hifi_codec_set_dai_fmt,
-	.set_sysclk = rt5631_hifi_codec_set_dai_sysclk,
-	.set_pll = rt5631_codec_set_dai_pll,
-};
-
-static struct snd_soc_dai_driver rt5631_dai[] = {
-	{
-		.name = "rt5631-hifi",
-		.id = 1,
-		.playback = {
-			.stream_name = "HIFI Playback",
-			.channels_min = 1,
-			.channels_max = 2,
-			.rates = RT5631_STEREO_RATES,
-			.formats = RT5631_FORMAT,
-		},
-		.capture = {
-			.stream_name = "HIFI Capture",
-			.channels_min = 1,
-			.channels_max = 2,
-			.rates = RT5631_STEREO_RATES,
-			.formats = RT5631_FORMAT,
-		},
-		.ops = &rt5631_ops,
-	},
-};
-
 static int rt5631_set_bias_level(struct snd_soc_codec *codec,
 			enum snd_soc_bias_level level)
 {
@@ -2494,69 +2209,6 @@ static int rt5631_probe(struct snd_soc_codec *codec)
 	rt5631_codec = codec;
 	rt5631_audio_codec = codec;
 
-	ret = device_create_file(codec->dev, &dev_attr_index_reg);
-	if (ret != 0) {
-		dev_err(codec->dev,
-			"Failed to create index_reg sysfs files: %d\n", ret);
-		return ret;
-	}
-	ret = device_create_file(codec->dev, &dev_attr_rt_codec_reg);
-	if (ret != 0) {
-		dev_err(codec->dev,
-			"Failed to create codec_reg sysfs files: %d\n", ret);
-		return ret;
-	}
-
-	ret = device_create_file(codec->dev, &dev_attr_audio_codec_status);
-	if (ret != 0) {
-		dev_err(codec->dev,
-			"Failed to create audio_codec_status sysfs files: %d\n", ret);
-		return ret;
-	}
-        ret = device_create_file(codec->dev, &dev_attr_mute_audio_dock);
-        if (ret != 0) {
-                dev_err(codec->dev,
-                        "Failed to create audio_codec_status sysfs files: %d\n", ret);
-                return ret;
-        }
-        ret = device_create_file(codec->dev, &dev_attr_unmute_audio_dock);
-        if (ret != 0) {
-                dev_err(codec->dev,
-                        "Failed to create audio_codec_status sysfs files: %d\n", ret);
-                return ret;
-        }
-        ret = device_create_file(codec->dev, &dev_attr_read_audio_dock);
-        if (ret != 0) {
-                dev_err(codec->dev,
-                        "Failed to create audio_codec_status sysfs files: %d\n", ret);
-                return ret;
-        }
-
-        ret = device_create_file(codec->dev, &dev_attr_unmute1_audio_dock);
-        if (ret != 0) {
-                dev_err(codec->dev,
-                        "Failed to create audio_codec_status sysfs files: %d\n", ret);
-                return ret;
-        }
-        ret = device_create_file(codec->dev, &dev_attr_unmute2_audio_dock);
-        if (ret != 0) {
-                dev_err(codec->dev,
-                        "Failed to create audio_codec_status sysfs files: %d\n", ret);
-                return ret;
-        }
-        ret = device_create_file(codec->dev, &dev_attr_unmute3_audio_dock);
-        if (ret != 0) {
-                dev_err(codec->dev,
-                        "Failed to create audio_codec_status sysfs files: %d\n", ret);
-                return ret;
-        }
-        ret = device_create_file(codec->dev, &dev_attr_unmute4_audio_dock);
-        if (ret != 0) {
-                dev_err(codec->dev,
-                        "Failed to create audio_codec_status sysfs files: %d\n", ret);
-                return ret;
-        }
-
 	if(rt5631_read(rt5631_codec, RT5631_VENDOR_ID1) == 0x10EC)
 		audio_codec_status = 1;
 	else
@@ -2565,8 +2217,8 @@ static int rt5631_probe(struct snd_soc_codec *codec)
 	pr_info("RT5631 initial ok!\n");
 
 #if defined(CONFIG_SND_HWDEP) || defined(CONFIG_SND_HWDEP_MODULE)
-       printk("************************realtek_ce_init_hwdep*************************************\n");
-       realtek_ce_init_hwdep(rt5631_codec);
+    printk("************************realtek_ce_init_hwdep*************************************\n");
+    realtek_ce_init_hwdep(rt5631_codec);
 #endif
 
 	return 0;
@@ -2615,22 +2267,40 @@ static int rt5631_resume(struct snd_soc_codec *codec)
 #define rt5631_resume NULL
 #endif
 
-/*
- * detect short current for mic1
- */
-int rt5631_ext_mic_detect(void)
-{
-	struct snd_soc_codec *codec = rt5631_codec;
-	int det;
+#define RT5631_STEREO_RATES SNDRV_PCM_RATE_8000_96000
+#define RT5631_FORMAT	(SNDRV_PCM_FMTBIT_S16_LE | \
+			SNDRV_PCM_FMTBIT_S20_3LE | \
+			SNDRV_PCM_FMTBIT_S24_LE | \
+			SNDRV_PCM_FMTBIT_S8)
 
-	rt5631_write_mask(codec, RT5631_MIC_CTRL_2, MICBIAS1_S_C_DET_ENA,
-				MICBIAS1_S_C_DET_MASK);
-	det = rt5631_read(codec, RT5631_INT_ST_IRQ_CTRL_2) & 0x0001;
-	rt5631_write_mask(codec, RT5631_INT_ST_IRQ_CTRL_2, 0x0001, 0x00001);
+static struct snd_soc_dai_ops rt5631_ops = {
+	.hw_params = rt5631_hifi_pcm_params,
+	.set_fmt = rt5631_hifi_codec_set_dai_fmt,
+	.set_sysclk = rt5631_hifi_codec_set_dai_sysclk,
+	.set_pll = rt5631_codec_set_dai_pll,
+};
 
-	return det;
-}
-EXPORT_SYMBOL_GPL(rt5631_ext_mic_detect);
+static struct snd_soc_dai_driver rt5631_dai[] = {
+	{
+		.name = "rt5631-hifi",
+		.id = 1,
+		.playback = {
+			.stream_name = "HIFI Playback",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = RT5631_STEREO_RATES,
+			.formats = RT5631_FORMAT,
+		},
+		.capture = {
+			.stream_name = "HIFI Capture",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = RT5631_STEREO_RATES,
+			.formats = RT5631_FORMAT,
+		},
+		.ops = &rt5631_ops,
+	},
+};
 
 static struct snd_soc_codec_driver soc_codec_dev_rt5631 = {
 	.probe = rt5631_probe,
