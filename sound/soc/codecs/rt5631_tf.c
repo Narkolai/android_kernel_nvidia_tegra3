@@ -327,21 +327,21 @@ static int rt5631_dmic_get(struct snd_kcontrol *kcontrol,
 
 static void rt5631_enable_dmic(struct snd_soc_codec *codec)
 {
-	snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL, DMIC_ENA, DMIC_ENA_MASK);
+	snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL, DMIC_ENA_MASK, DMIC_ENA);
 	snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL,
-		DMIC_L_CH_UNMUTE | DMIC_R_CH_UNMUTE,
-		DMIC_L_CH_MUTE_MASK | DMIC_R_CH_MUTE_MASK);
+		DMIC_L_CH_MUTE_MASK | DMIC_R_CH_MUTE_MASK,
+		DMIC_L_CH_UNMUTE | DMIC_R_CH_UNMUTE);
 }
 
 static void rt5631_close_dmic(struct snd_soc_codec *codec)
 {
 	snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL,
-		DMIC_L_CH_MUTE | DMIC_R_CH_MUTE,
-		DMIC_L_CH_MUTE_MASK | DMIC_R_CH_MUTE_MASK);
+		DMIC_L_CH_MUTE_MASK | DMIC_R_CH_MUTE_MASK,
+		DMIC_L_CH_MUTE | DMIC_R_CH_MUTE);
 	snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL,
-		DMIC_DIS, DMIC_ENA_MASK);
+		DMIC_ENA_MASK, DMIC_DIS);
 
-	snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x0000, 0x001f);	//boost 0dB
+	snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x0000);	//boost 0dB
 	return;
 }
 
@@ -388,15 +388,15 @@ static void rt5631_update_eqmode(struct snd_soc_codec *codec, int mode)
 		for (i = RT5631_EQ_BW_LOP; i <= RT5631_EQ_HPF_GAIN; i++)
 			rt5631_write_index(codec, i,
 				hweq_preset[mode].value[i]);
-		snd_soc_update_bits(codec, RT5631_EQ_CTRL, 0x0000, 0x003f);
-		rt5631_write_index_mask(codec, RT5631_EQ_PRE_VOL_CTRL
-						, 0x0000, 0x8000);
+		snd_soc_update_bits(codec, RT5631_EQ_CTRL, 0x003f, 0x0000);
+		rt5631_write_index_mask(codec, RT5631_EQ_PRE_VOL_CTRL, 
+				0x0000, 0x8000);
 	} else {
 		/* Fill and update EQ parameter,
 		 * and EQ block are enabled.
 		 */
-		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1,RT5631_PWR_ADC_L_CLK ,
-			RT5631_PWR_ADC_L_CLK );
+		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1, 
+			RT5631_PWR_ADC_L_CLK, RT5631_PWR_ADC_L_CLK);
 		rt5631_write_index_mask(codec, RT5631_EQ_PRE_VOL_CTRL
 						, 0x8000, 0x8000);
 		snd_soc_write(codec, RT5631_EQ_CTRL,0x8000);
@@ -407,11 +407,11 @@ static void rt5631_update_eqmode(struct snd_soc_codec *codec, int mode)
 		rt5631_write_index(codec, RT5631_EQ_POST_VOL_CTRL, hweq_preset[mode].EqOutVol); //set EQ output volume
 		snd_soc_write(codec, RT5631_EQ_CTRL, hweq_preset[mode].ctrl | 0xc000);
 		if((hweq_preset[mode].ctrl & 0x8000))
-			snd_soc_update_bits(codec, RT5631_EQ_CTRL, 0x8000, 0xc000);
+			snd_soc_update_bits(codec, RT5631_EQ_CTRL, 0xc000, 0x8000);
 		else
-			snd_soc_update_bits(codec, RT5631_EQ_CTRL, 0x0000, 0xc000);
+			snd_soc_update_bits(codec, RT5631_EQ_CTRL, 0xc000, 0x0000);
 		if(!pw_ladc)
-			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1, 0, RT5631_PWR_ADC_L_CLK );
+			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_L_CLK, 0);
 	}
 
 	return;
@@ -466,9 +466,9 @@ static int rt5631_set_gain(struct snd_kcontrol *kcontrol,
 		/* set heaset mic gain */
 		printk("%s():set headset gain\n", __func__);
 		if(project_id == TEGRA3_PROJECT_TF700T)
-			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x0005, 0x001f);
+			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x0005);
 		else
-			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x0000, 0x001f);
+			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x0000);
 	}else{
 		#if ENABLE_ALC
 		printk("%s(): set ALC DMIC parameter\n", __func__);
@@ -488,13 +488,13 @@ static int rt5631_set_gain(struct snd_kcontrol *kcontrol,
 		/* set dmic gain */
 		if(output_source==OUTPUT_SOURCE_VOICE || input_source==INPUT_SOURCE_VR || input_agc==INPUT_SOURCE_AGC){
 			printk("%s(): use dsp for capture gain\n", __func__);
-			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x0000, 0x001f);	//boost 0dB
+			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x0000);	//boost 0dB
 		}else{
 			printk("%s(): use codec for capture gain\n", __func__);
 			if(project_id == TEGRA3_PROJECT_TF700T)
-			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x0013, 0x00ff);
+			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x00ff, 0x0013);
 			else
-			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x000f, 0x001f);    //boost 22.5dB
+			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x000f);    //boost 22.5dB
 		}
 	}
 	mutex_unlock(&codec->mutex);
@@ -688,18 +688,16 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 		if (!spkl_out_enable && !strcmp(w->name, "SPKL Amp")) {
 
 			if(project_id == TEGRA3_PROJECT_TF201){
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,0x0700, RT5631_L_VOL_MASK);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_L_VOL_MASK, 0x0700);
 			}else if(project_id == TEGRA3_PROJECT_TF300TG){
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,0x0700, RT5631_L_VOL_MASK);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_L_VOL_MASK, 0x0700);
 			}else if(project_id == TEGRA3_PROJECT_TF700T){
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,0x0600, RT5631_L_VOL_MASK);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_L_VOL_MASK, 0x0600);
 			}
 			if((tf700t_pcb_id == TF700T_PCB_ER1) &&
-				(project_id == TEGRA3_PROJECT_TF700T)){
-			   snd_soc_update_bits(codec,
-                               RT5631_SPK_OUT_VOL,0x0d00, RT5631_L_VOL_MASK);
-			   printk("%s: %s\n",
-                              __func__, "TF700T ER1 spk L ch vol = -7.5dB");
+			   (project_id == TEGRA3_PROJECT_TF700T)){
+			   snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_L_VOL_MASK, 0x0d00);
+			   printk("%s: %s\n", __func__, "TF700T ER1 spk L ch vol = -7.5dB");
 			}
 
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD4,
@@ -707,24 +705,22 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1,
 					PWR_CLASS_D, PWR_CLASS_D);
 			snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,
-					0, RT_L_MUTE);
+					RT_L_MUTE, 0);
 			spkl_out_enable = 1;
 		}
 		if (!spkr_out_enable && !strcmp(w->name, "SPKR Amp")) {
 
 			if(project_id == TEGRA3_PROJECT_TF201){
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,0x0007, RT5631_R_VOL_MASK);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_R_VOL_MASK, 0x0007);
 			}else if(project_id == TEGRA3_PROJECT_TF300TG){
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,0x0007, RT5631_R_VOL_MASK);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_R_VOL_MASK, 0x0007);
 			}else if(project_id == TEGRA3_PROJECT_TF700T){
-				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,0x0006, RT5631_R_VOL_MASK);
+				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_R_VOL_MASK, 0x0006);
 			}
 			if((tf700t_pcb_id == TF700T_PCB_ER1) &&
-				(project_id  == TEGRA3_PROJECT_TF700T)){
-                            snd_soc_update_bits(codec,
-                                RT5631_SPK_OUT_VOL,0x000d, RT5631_R_VOL_MASK);
-                            printk("%s: %s\n",
-                               __func__, "TF700T ER1 spk R ch vol = -7.5dB");
+				(project_id == TEGRA3_PROJECT_TF700T)){
+                snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_R_VOL_MASK, 0x000d);
+                printk("%s: %s\n", __func__, "TF700T ER1 spk R ch vol = -7.5dB");
 			}
 
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD4,
@@ -732,7 +728,7 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1,
 					PWR_CLASS_D, PWR_CLASS_D);
 			snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,
-					0, RT_R_MUTE);
+					RT_R_MUTE, 0);
 			spkr_out_enable = 1;
 		}
 		break;
@@ -742,19 +738,19 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,
 					RT_L_MUTE, RT_L_MUTE);
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD4,
-					0, PWR_SPK_L_VOL);
+					PWR_SPK_L_VOL, 0);
 			spkl_out_enable = 0;
 		}
 		if (spkr_out_enable && !strcmp(w->name, "SPKR Amp")) {
 			snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL,
 					RT_R_MUTE, RT_R_MUTE);
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD4,
-					0, PWR_SPK_R_VOL);
+					PWR_SPK_R_VOL, 0);
 			spkr_out_enable = 0;
 		}
 		if (0 == spkl_out_enable && 0 == spkr_out_enable)
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1,
-					0, PWR_CLASS_D);
+					PWR_CLASS_D, 0);
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
@@ -763,7 +759,7 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 		spk_out_flag = false;
 		if(!spk_out_flag && !ADC_flag){
 			//Disable ALC
-			snd_soc_update_bits(codec, RT5631_ALC_CTRL_3, 0x2000,0xf000);
+			snd_soc_update_bits(codec, RT5631_ALC_CTRL_3, 0xf000, 0x2000);
 		}else if(!spk_out_flag && DMIC_flag ){
 			if(project_id == TEGRA3_PROJECT_TF700T){
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
@@ -814,7 +810,7 @@ static void hp_depop_mode2_onebit(struct snd_soc_codec *codec, int enable)
 {
 	unsigned int soft_vol, hp_zc;
 
-	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2, 0, EN_ONE_BIT_DEPOP);
+	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2, EN_ONE_BIT_DEPOP, 0);
 
 	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
 	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
@@ -841,7 +837,7 @@ static void hp_mute_unmute_depop_onebit(struct snd_soc_codec *codec, int enable)
 {
 	unsigned int soft_vol, hp_zc;
 
-	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2, 0, EN_ONE_BIT_DEPOP);
+	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2, EN_ONE_BIT_DEPOP, 0);
 	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
 	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
 	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
@@ -849,8 +845,7 @@ static void hp_mute_unmute_depop_onebit(struct snd_soc_codec *codec, int enable)
 	if (enable) {
 		schedule_timeout_uninterruptible(msecs_to_jiffies(10));
 		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x307f);
-		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL, 0,
-				RT_L_MUTE | RT_R_MUTE);
+		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL, RT_L_MUTE | RT_R_MUTE, 0);
 		schedule_timeout_uninterruptible(msecs_to_jiffies(300));
 
 	} else {
@@ -892,15 +887,14 @@ static void hp_depop2(struct snd_soc_codec *codec, int enable)
 		schedule_timeout_uninterruptible(msecs_to_jiffies(75));
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
 			POW_ON_SOFT_GEN | PD_HPAMP_L_ST_UP | PD_HPAMP_R_ST_UP);
-		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3, 0,
-					PWR_HP_DEPOP_DIS);
+		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3, PWR_HP_DEPOP_DIS, 0);
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
 			POW_ON_SOFT_GEN | EN_DEPOP2_FOR_HP |
 			PD_HPAMP_L_ST_UP | PD_HPAMP_R_ST_UP);
 		schedule_timeout_uninterruptible(msecs_to_jiffies(80));
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1, POW_ON_SOFT_GEN);
-		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3, 0,
-			PWR_CHARGE_PUMP | PWR_HP_L_AMP | PWR_HP_R_AMP);
+		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
+			PWR_CHARGE_PUMP | PWR_HP_L_AMP | PWR_HP_R_AMP, 0);
 	}
 
 	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
@@ -925,8 +919,7 @@ static void hp_mute_unmute_depop(struct snd_soc_codec *codec, int enable)
 		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
 			POW_ON_SOFT_GEN | EN_MUTE_UNMUTE_DEPOP |
 			EN_HP_R_M_UN_MUTE_DEPOP | EN_HP_L_M_UN_MUTE_DEPOP);
-		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL, 0,
-				RT_L_MUTE | RT_R_MUTE);
+		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL, RT_L_MUTE | RT_R_MUTE, 0);
 		schedule_timeout_uninterruptible(msecs_to_jiffies(160));
 	} else {
 		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x302f);
@@ -1049,16 +1042,16 @@ static int mic_event(struct snd_soc_dapm_widget *w,
 		 */
 		if (val_mic1 && val_mic2)
 			snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-							0x0000, 0xc000);
+							0xc000, 0x0000);
 		else if (val_mic1)
 			snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-							0x4000, 0xc000);
+							0xc000, 0x4000);
 		else if (val_mic2)
 			snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-							0x8000, 0xc000);
+							0xc000, 0x8000);
 		else
 			snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-							0x0000, 0xc000);
+							0xc000, 0x0000);
 		break;
 
 	default:
@@ -1086,7 +1079,7 @@ static int auxo1_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMU:
 		if (!aux1_en) {
 			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
-						0, RT_L_MUTE);
+						RT_L_MUTE, 0);
 			aux1_en = true;
 		}
 		break;
@@ -1119,7 +1112,7 @@ static int auxo2_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMU:
 		if (!aux2_en) {
 			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
-						0, RT_R_MUTE);
+						RT_R_MUTE, 0);
 			aux2_en = true;
 		}
 		asusAudiodec_i2c_write_data(unmute_all_audioDock, 2);
@@ -1144,7 +1137,7 @@ static int mono_event(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
 						MUTE_MONO, MUTE_MONO);
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
-						0, PWR_MONO_DEPOP_DIS);
+						PWR_MONO_DEPOP_DIS, 0);
 			mono_en = false;
 		}
 		break;
@@ -1154,7 +1147,7 @@ static int mono_event(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
 				PWR_MONO_DEPOP_DIS, PWR_MONO_DEPOP_DIS);
 			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
-						0, MUTE_MONO);
+						MUTE_MONO, 0);
 			mono_en = true;
 		}
 		break;
@@ -1195,13 +1188,13 @@ static int config_common_power(struct snd_soc_codec *codec, bool pmu)
 		ref_count--;
 		if(ref_count == 0){
 			printk("%s: Real powr down, ref_count = 0\n", __func__);
-			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1, 0,
+			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1,
 				PWR_MAIN_I2S_EN | PWR_DAC_REF |
-				PWR_DAC_L_TO_MIXER | PWR_DAC_R_TO_MIXER);
+				PWR_DAC_L_TO_MIXER | PWR_DAC_R_TO_MIXER, 0);
 		}
 		if (rt5631->pll_used_flag)
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD2,
-						0, PWR_PLL);
+						PWR_PLL, 0);
 	}
 
 	return 0;
@@ -1250,7 +1243,7 @@ static int adc_event(struct snd_soc_dapm_widget *w,
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x000a);
 				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe090);
-				snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x0005, 0x001f);
+				snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x0005);
 			}else{
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x0004);
@@ -1258,7 +1251,7 @@ static int adc_event(struct snd_soc_dapm_widget *w,
 			}
 		}
 		msleep(DEPOP_DELAY);
-		snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x0000, 0x8080);
+		snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x8080, 0x0000);
 
 		#endif
 		break;
@@ -1269,7 +1262,7 @@ static int adc_event(struct snd_soc_dapm_widget *w,
 		ADC_flag = false;
 		if(!spk_out_flag ){
 			//Disable ALC
-			snd_soc_update_bits(codec, RT5631_ALC_CTRL_3, 0x2000,0xf000);
+			snd_soc_update_bits(codec, RT5631_ALC_CTRL_3, 0xf000, 0x2000);
 			}
 		#endif
 		snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x8080, 0x8080);
@@ -1310,7 +1303,7 @@ static int dac_event(struct snd_soc_dapm_widget *w,
 		printk("dac_event --ALC_SND_SOC_DAPM_PRE_PMD\n");
 		if(!spk_out_flag && !ADC_flag ){
 			//Disable ALC
-			snd_soc_update_bits(codec, RT5631_ALC_CTRL_3, 0x2000,0xf000);
+			snd_soc_update_bits(codec, RT5631_ALC_CTRL_3, 0xf000, 0x2000);
 		}
 		#endif
 	break;
@@ -1720,32 +1713,32 @@ static void rt5631_set_dmic_params(struct snd_soc_codec *codec,
 	int rate;
 
 	snd_soc_update_bits(codec, RT5631_GPIO_CTRL,
-		GPIO_PIN_FUN_SEL_GPIO_DIMC | GPIO_DMIC_FUN_SEL_DIMC,
-		GPIO_PIN_FUN_SEL_MASK | GPIO_DMIC_FUN_SEL_MASK);
-	snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL, DMIC_ENA, DMIC_ENA_MASK);
+		GPIO_PIN_FUN_SEL_MASK | GPIO_DMIC_FUN_SEL_MASK,
+		GPIO_PIN_FUN_SEL_GPIO_DIMC | GPIO_DMIC_FUN_SEL_DIMC);
+	snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL, DMIC_ENA_MASK, DMIC_ENA);
 	snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL,
-		DMIC_L_CH_LATCH_FALLING | DMIC_R_CH_LATCH_RISING,
-		DMIC_L_CH_LATCH_MASK|DMIC_R_CH_LATCH_MASK);
+		DMIC_L_CH_LATCH_MASK | DMIC_R_CH_LATCH_MASK,
+		DMIC_L_CH_LATCH_FALLING | DMIC_R_CH_LATCH_RISING);
 
 	rate = params_rate(params);
 	switch (rate) {
 	case 44100:
 	case 48000:
 		snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL,
-			DMIC_CLK_CTRL_TO_32FS, DMIC_CLK_CTRL_MASK);
+			DMIC_CLK_CTRL_MASK, DMIC_CLK_CTRL_TO_32FS);
 		break;
 
 	case 32000:
 	case 22050:
 		snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL,
-			DMIC_CLK_CTRL_TO_64FS, DMIC_CLK_CTRL_MASK);
+			DMIC_CLK_CTRL_MASK, DMIC_CLK_CTRL_TO_64FS);
 		break;
 
 	case 16000:
 	case 11025:
 	case 8000:
 		snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL,
-			DMIC_CLK_CTRL_TO_128FS, DMIC_CLK_CTRL_MASK);
+			DMIC_CLK_CTRL_MASK, DMIC_CLK_CTRL_TO_128FS);
 		break;
 
 	default:
@@ -1753,8 +1746,8 @@ static void rt5631_set_dmic_params(struct snd_soc_codec *codec,
 	}
 
 	snd_soc_update_bits(codec, RT5631_DIG_MIC_CTRL,
-		DMIC_L_CH_UNMUTE | DMIC_R_CH_UNMUTE,
-		DMIC_L_CH_MUTE_MASK | DMIC_R_CH_MUTE_MASK);
+		DMIC_L_CH_MUTE_MASK | DMIC_R_CH_MUTE_MASK,
+		DMIC_L_CH_UNMUTE | DMIC_R_CH_UNMUTE);
 
 	return;
 }
@@ -1801,7 +1794,7 @@ static int rt5631_hifi_pcm_params(struct snd_pcm_substream *substream,
 			rt5631_close_dmic(codec);
 	}
 
-	snd_soc_update_bits(codec, RT5631_SDP_CTRL, iface, SDP_I2S_DL_MASK);
+	snd_soc_update_bits(codec, RT5631_SDP_CTRL, SDP_I2S_DL_MASK, iface);
 
 	if (coeff >= 0)
 		snd_soc_write(codec, RT5631_STEREO_AD_DA_CLK_CTRL,
@@ -2109,7 +2102,7 @@ static int rt5631_probe(struct snd_soc_codec *codec)
 					0x2000, 0x2000);
 	else
 		snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-					0, 0x2000);
+					0x2000, 0);
 
 	codec->dapm.bias_level = SND_SOC_BIAS_STANDBY;
 	rt5631_codec = codec;
@@ -2163,7 +2156,7 @@ static int rt5631_resume(struct snd_soc_codec *codec)
 					0x2000, 0x2000);
 	else
 		snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-					0, 0x2000);
+					0x2000, 0);
 	printk(KERN_INFO "%s- #####\n", __func__);
 
 	return 0;
