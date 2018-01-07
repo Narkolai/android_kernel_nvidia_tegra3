@@ -18,7 +18,6 @@
 #include <linux/delay.h>
 #include <linux/pm.h>
 #include <linux/i2c.h>
-#include <linux/platform_device.h>
 #include <linux/spi/spi.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -26,16 +25,17 @@
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
+
 #include <linux/gpio.h>
 #include <../gpio-names.h>
 #include <mach/board-asus-t30-misc.h>
+#include <../board-asus-t30.h>
 
 #include "rt5631_tf.h"
+
 #if defined(CONFIG_SND_HWDEP) || defined(CONFIG_SND_HWDEP_MODULE)
 #include "rt56xx_ioctl.h"
 #endif
-
-#include <../board-asus-t30.h>
 
 #define VIRTUAL_REG_FOR_MISC_FUNC 0x90
 #define RT5631_PWR_ADC_L_CLK (1 << 11)
@@ -85,7 +85,6 @@ static struct snd_soc_codec *rt5631_codec;
 static const u16 rt5631_reg[0x80];
 static int timesofbclk = 64;
 static unsigned int reg90;
-static int poll_rate = 0;
 struct delayed_work poll_audio_work;
 int count_base = 1;
 int count_100 = 0;
@@ -1531,7 +1530,7 @@ SND_SOC_DAPM_OUTPUT("MONO"),
 };
 
 
-static const struct snd_soc_dapm_route audio_map[] = {
+static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"Mic1 Boost", NULL, "MIC1"},
 	{"Mic2 Boost", NULL, "MIC2"},
 	{"MONOIN_RXP Boost", NULL, "MONOIN_RXP"},
@@ -1653,17 +1652,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 	{"MONO", NULL, "Mono Amp"}
 };
-
-static int rt5631_add_widgets(struct snd_soc_codec *codec)
-{
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
-
-	snd_soc_dapm_new_controls(dapm, rt5631_dapm_widgets,
-			ARRAY_SIZE(rt5631_dapm_widgets));
-	snd_soc_dapm_add_routes(dapm, audio_map, ARRAY_SIZE(audio_map));
-
-	return 0;
-}
 
 struct coeff_clk_div {
 	u32 mclk;
@@ -2045,23 +2033,6 @@ static void DumpRT5631Q(struct snd_soc_codec *codec)
 	}
 }
 
-static void audio_codec_stress(struct work_struct *work)
-{
-	u16 temp;
-
-	temp = snd_soc_read(rt5631_codec, RT5631_VENDOR_ID1); /* Read codec ID */
-
-	count_base = count_base+1;
-
-	if (count_base == 100){
-		count_base = 0;
-		count_100 = count_100 + 1;
-		printk("AUDIO_CODEC: count = %d (* 100), the register 0x7Ch is %x\n",count_100,temp);
-	}
-
-	schedule_delayed_work(&poll_audio_work, poll_rate);
-}
-
 int audio_codec_open(struct inode *inode, struct file *filp)
 {
 	return 0;
@@ -2095,18 +2066,6 @@ long audio_codec_ioctl(struct file *filp,
 
        /* cmd: the ioctl commend user-space asked */
 	switch(cmd){
-		case AUDIO_STRESS_TEST:
-			printk("AUDIO_CODEC: AUDIO_STRESS_TEST: %lu (1: Start, 0: Stop)\n",arg);
-			if(arg==AUDIO_IOCTL_START_HEAVY){
-				poll_rate = START_HEAVY;
-				schedule_delayed_work(&poll_audio_work, poll_rate);
-			}else if(arg==AUDIO_IOCTL_START_NORMAL){
-				poll_rate = START_NORMAL;
-				schedule_delayed_work(&poll_audio_work,poll_rate);
-			}else if(arg==AUDIO_IOCTL_STOP){
-				cancel_delayed_work_sync(&poll_audio_work);
-			}
-			break;
 		case AUDIO_DUMP:
 			printk("AUDIO_CODEC: AUDIO_DUMP\n");
 			DumpRT5631Q(rt5631_codec);
@@ -2433,14 +2392,14 @@ static DEVICE_ATTR(rt_codec_reg, S_IRUGO, rt5631_codec_reg_show, rt5631_codec_re
 			SNDRV_PCM_FMTBIT_S8)
 
 
-struct snd_soc_dai_ops rt5631_ops = {
+static struct snd_soc_dai_ops rt5631_ops = {
 	.hw_params = rt5631_hifi_pcm_params,
 	.set_fmt = rt5631_hifi_codec_set_dai_fmt,
 	.set_sysclk = rt5631_hifi_codec_set_dai_sysclk,
 	.set_pll = rt5631_codec_set_dai_pll,
 };
 
-struct snd_soc_dai_driver rt5631_dai[] = {
+static struct snd_soc_dai_driver rt5631_dai[] = {
 	{
 		.name = "rt5631-hifi",
 		.id = 1,
@@ -2461,7 +2420,6 @@ struct snd_soc_dai_driver rt5631_dai[] = {
 		.ops = &rt5631_ops,
 	},
 };
-EXPORT_SYMBOL_GPL(rt5631_dai);
 
 static int rt5631_set_bias_level(struct snd_soc_codec *codec,
 			enum snd_soc_bias_level level)
@@ -2535,9 +2493,6 @@ static int rt5631_probe(struct snd_soc_codec *codec)
 	codec->dapm.bias_level = SND_SOC_BIAS_STANDBY;
 	rt5631_codec = codec;
 	rt5631_audio_codec = codec;
-	snd_soc_add_codec_controls(codec, rt5631_snd_controls,
-		ARRAY_SIZE(rt5631_snd_controls));
-	rt5631_add_widgets(codec);
 
 	ret = device_create_file(codec->dev, &dev_attr_index_reg);
 	if (ret != 0) {
@@ -2687,6 +2642,12 @@ static struct snd_soc_codec_driver soc_codec_dev_rt5631 = {
 	.reg_word_size = sizeof(u16),
 	.reg_cache_default = rt5631_reg,
 	.reg_cache_step = 1,
+	.controls = rt5631_snd_controls,
+	.num_controls = ARRAY_SIZE(rt5631_snd_controls),
+	.dapm_widgets = rt5631_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(rt5631_dapm_widgets),
+	.dapm_routes = rt5631_dapm_routes,
+	.num_dapm_routes = ARRAY_SIZE(rt5631_dapm_routes),
 };
 
 static const struct i2c_device_id rt5631_i2c_id[] = {
@@ -2700,11 +2661,14 @@ static int rt5631_i2c_probe(struct i2c_client *i2c,
 {
 	struct rt5631_priv *rt5631;
 	int ret;
+
 	printk("%s+\n", __func__);
+
 	pr_info("RT5631 Audio Codec %s\n", RT5631_VERSION);
 	audio_codec_status = 0;
 
-	rt5631 = kzalloc(sizeof(struct rt5631_priv), GFP_KERNEL);
+	rt5631 = devm_kzalloc(&i2c->dev, sizeof(struct rt5631_priv),
+			      GFP_KERNEL);
 	if (NULL == rt5631)
 		return -ENOMEM;
 
@@ -2718,9 +2682,7 @@ static int rt5631_i2c_probe(struct i2c_client *i2c,
 
 	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_rt5631,
 			rt5631_dai, ARRAY_SIZE(rt5631_dai));
-	if (ret < 0)
-		kfree(rt5631);
-	INIT_DELAYED_WORK(&poll_audio_work, audio_codec_stress);
+
 	printk("%s-\n", __func__);
 	return ret;
 }
@@ -2728,15 +2690,7 @@ static int rt5631_i2c_probe(struct i2c_client *i2c,
 static __devexit int rt5631_i2c_remove(struct i2c_client *client)
 {
 	snd_soc_unregister_codec(&client->dev);
-	kfree(i2c_get_clientdata(client));
 	return 0;
-}
-
-static void rt5631_i2c_shutdown(struct i2c_client *client)
-{
-	printk(KERN_INFO "%s+ #####\n", __func__);
-	rt5631_set_bias_level(rt5631_codec, SND_SOC_BIAS_OFF);
-	printk(KERN_INFO "%s- #####\n", __func__);
 }
 
 struct i2c_driver rt5631_i2c_driver = {
@@ -2746,7 +2700,6 @@ struct i2c_driver rt5631_i2c_driver = {
 	},
 	.probe = rt5631_i2c_probe,
 	.remove   = __devexit_p(rt5631_i2c_remove),
-	.shutdown = rt5631_i2c_shutdown,
 	.id_table = rt5631_i2c_id,
 };
 
