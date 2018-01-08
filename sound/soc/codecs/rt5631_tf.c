@@ -37,7 +37,6 @@
 #include "rt56xx_ioctl.h"
 #endif
 
-#define VIRTUAL_REG_FOR_MISC_FUNC 0x90
 #define RT5631_PWR_ADC_L_CLK (1 << 11)
 
 #define AUDIO_IOC_MAGIC	0xf7
@@ -84,7 +83,6 @@ struct rt5631_priv {
 
 static int pw_ladc=0;
 static struct snd_soc_codec *rt5631_codec;
-static const u16 rt5631_reg[0x80];
 struct delayed_work poll_audio_work;
 int count_base = 1;
 int count_100 = 0;
@@ -103,8 +101,35 @@ EXPORT_SYMBOL(rt5631_audio_codec) ;
 extern bool headset_alive;
 
 extern int asusAudiodec_i2c_write_data(char *data, int length);
-extern int asusAudiodec_i2c_read_data(char *data, int length);
-extern int asus_dock_in_state(void);
+
+static const u16 rt5631_reg[RT5631_VENDOR_ID2 + 1] = {
+	[RT5631_SPK_OUT_VOL] = 0x8888,
+	[RT5631_HP_OUT_VOL] = 0x8080,
+	[RT5631_MONO_AXO_1_2_VOL] = 0xa080,
+	[RT5631_AUX_IN_VOL] = 0x0808,
+	[RT5631_ADC_REC_MIXER] = 0xf0f0,
+	[RT5631_VDAC_DIG_VOL] = 0x0010,
+	[RT5631_OUTMIXER_L_CTRL] = 0xffc0,
+	[RT5631_OUTMIXER_R_CTRL] = 0xffc0,
+	[RT5631_AXO1MIXER_CTRL] = 0x88c0,
+	[RT5631_AXO2MIXER_CTRL] = 0x88c0,
+	[RT5631_DIG_MIC_CTRL] = 0x3000,
+	[RT5631_MONO_INPUT_VOL] = 0x8808,
+	[RT5631_SPK_MIXER_CTRL] = 0xf8f8,
+	[RT5631_SPK_MONO_OUT_CTRL] = 0xfc00,
+	[RT5631_SPK_MONO_HP_OUT_CTRL] = 0x4440,
+	[RT5631_SDP_CTRL] = 0x8000,
+	[RT5631_MONO_SDP_CTRL] = 0x8000,
+	[RT5631_STEREO_AD_DA_CLK_CTRL] = 0x2010,
+	[RT5631_GEN_PUR_CTRL_REG] = 0x0e00,
+	[RT5631_INT_ST_IRQ_CTRL_2] = 0x071a,
+	[RT5631_MISC_CTRL] = 0x2040,
+	[RT5631_DEPOP_FUN_CTRL_2] = 0x8000,
+	[RT5631_SOFT_VOL_CTRL] = 0x07e0,
+	[RT5631_ALC_CTRL_1] = 0x0206,
+	[RT5631_ALC_CTRL_3] = 0x2000,
+	[RT5631_PSEUDO_SPATL_CTRL] = 0x0553,
+};
 
 /**
  * rt5631_write_index - write index register of 2nd layer
@@ -154,6 +179,81 @@ static void rt5631_write_index_mask(struct snd_soc_codec *codec,
 static inline int rt5631_reset(struct snd_soc_codec *codec)
 {
 	return snd_soc_write(codec, RT5631_RESET, 0);
+}
+
+static int rt5631_volatile_register(struct snd_soc_codec *codec,
+				    unsigned int reg)
+{
+	switch (reg) {
+	case RT5631_RESET:
+	case RT5631_INT_ST_IRQ_CTRL_2:
+	case RT5631_INDEX_ADD:
+	case RT5631_INDEX_DATA:
+	case RT5631_EQ_CTRL:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+static int rt5631_readable_register(struct snd_soc_codec *codec,
+				    unsigned int reg)
+{
+	switch (reg) {
+	case RT5631_RESET:
+	case RT5631_SPK_OUT_VOL:
+	case RT5631_HP_OUT_VOL:
+	case RT5631_MONO_AXO_1_2_VOL:
+	case RT5631_AUX_IN_VOL:
+	case RT5631_STEREO_DAC_VOL_1:
+	case RT5631_MIC_CTRL_1:
+	case RT5631_STEREO_DAC_VOL_2:
+	case RT5631_ADC_CTRL_1:
+	case RT5631_ADC_REC_MIXER:
+	case RT5631_ADC_CTRL_2:
+	case RT5631_VDAC_DIG_VOL:
+	case RT5631_OUTMIXER_L_CTRL:
+	case RT5631_OUTMIXER_R_CTRL:
+	case RT5631_AXO1MIXER_CTRL:
+	case RT5631_AXO2MIXER_CTRL:
+	case RT5631_MIC_CTRL_2:
+	case RT5631_DIG_MIC_CTRL:
+	case RT5631_MONO_INPUT_VOL:
+	case RT5631_SPK_MIXER_CTRL:
+	case RT5631_SPK_MONO_OUT_CTRL:
+	case RT5631_SPK_MONO_HP_OUT_CTRL:
+	case RT5631_SDP_CTRL:
+	case RT5631_MONO_SDP_CTRL:
+	case RT5631_STEREO_AD_DA_CLK_CTRL:
+	case RT5631_PWR_MANAG_ADD1:
+	case RT5631_PWR_MANAG_ADD2:
+	case RT5631_PWR_MANAG_ADD3:
+	case RT5631_PWR_MANAG_ADD4:
+	case RT5631_GEN_PUR_CTRL_REG:
+	case RT5631_GLOBAL_CLK_CTRL:
+	case RT5631_PLL_CTRL:
+	case RT5631_INT_ST_IRQ_CTRL_1:
+	case RT5631_INT_ST_IRQ_CTRL_2:
+	case RT5631_GPIO_CTRL:
+	case RT5631_MISC_CTRL:
+	case RT5631_DEPOP_FUN_CTRL_1:
+	case RT5631_DEPOP_FUN_CTRL_2:
+	case RT5631_JACK_DET_CTRL:
+	case RT5631_SOFT_VOL_CTRL:
+	case RT5631_ALC_CTRL_1:
+	case RT5631_ALC_CTRL_2:
+	case RT5631_ALC_CTRL_3:
+	case RT5631_PSEUDO_SPATL_CTRL:
+	case RT5631_INDEX_ADD:
+	case RT5631_INDEX_DATA:
+	case RT5631_EQ_CTRL:
+	case RT5631_VENDOR_ID:
+	case RT5631_VENDOR_ID1:
+	case RT5631_VENDOR_ID2:
+		return 1;
+	default:
+		return 0;
+	}
 }
 
 struct rt5631_init_reg {
@@ -2202,9 +2302,11 @@ static struct snd_soc_codec_driver soc_codec_dev_rt5631 = {
 	.suspend = rt5631_suspend,
 	.resume = rt5631_resume,
 	.set_bias_level = rt5631_set_bias_level,
-	.reg_cache_size = ARRAY_SIZE(rt5631_reg),
+	.reg_cache_size = RT5631_VENDOR_ID2 + 1,
 	.reg_word_size = sizeof(u16),
 	.reg_cache_default = rt5631_reg,
+	.volatile_register = rt5631_volatile_register,
+	.readable_register = rt5631_readable_register,
 	.reg_cache_step = 1,
 	.controls = rt5631_snd_controls,
 	.num_controls = ARRAY_SIZE(rt5631_snd_controls),
