@@ -38,29 +38,8 @@
 #include "rt56xx_ioctl.h"
 #endif
 
-#define AUDIO_IOC_MAGIC	0xf7
-#define AUDIO_IOC_MAXNR	6
-#define AUDIO_STRESS_TEST	_IOW(AUDIO_IOC_MAGIC, 1,int)
-#define AUDIO_DUMP	_IOW(AUDIO_IOC_MAGIC, 2,int)
-#define OUTPUT_POWER_CONTROL	_IOW(AUDIO_IOC_MAGIC, 3,int)
-#define AUDIO_I2C_READ	_IOW(AUDIO_IOC_MAGIC, 4,int)
-#define AUDIO_I2C_WRITE	_IOW(AUDIO_IOC_MAGIC, 5,int)
-#define AUDIO_CAPTURE_MODE _IOW(AUDIO_IOC_MAGIC, 6,int)
-#define AUDIO_IOCTL_START_HEAVY (2)
-#define AUDIO_IOCTL_START_NORMAL (1)
-#define AUDIO_IOCTL_STOP (0)
-#define START_NORMAL (HZ/2)
-#define START_HEAVY (HZ/20)
-
 #define ENABLE_EQ (1)
 #define ENABLE_ALC (1)
-
-#define INPUT_SOURCE_NORMAL 100
-#define INPUT_SOURCE_VR 101
-#define OUTPUT_SOURCE_NORMAL	 200
-#define OUTPUT_SOURCE_VOICE 201
-#define INPUT_SOURCE_NO_AGC 300
-#define INPUT_SOURCE_AGC 301
 
 #define RT5631_3V3_POWER_EN TEGRA_GPIO_PP0
 
@@ -82,12 +61,6 @@ struct rt5631_priv {
 
 static int pw_ladc=0;
 static struct snd_soc_codec *rt5631_codec;
-struct delayed_work poll_audio_work;
-int count_base = 1;
-int count_100 = 0;
-static int input_source=INPUT_SOURCE_NORMAL;
-static int output_source=OUTPUT_SOURCE_NORMAL;
-static int input_agc = INPUT_SOURCE_NO_AGC;
 static int project_id = 0;
 #if ENABLE_ALC
 static bool spk_out_flag = false;
@@ -96,7 +69,6 @@ static bool DMIC_flag= true;   //heaset = false;
 #endif
 struct snd_soc_codec *rt5631_audio_codec = NULL;
 EXPORT_SYMBOL(rt5631_audio_codec) ;
-extern bool headset_alive;
 
 extern int asusAudiodec_i2c_write_data(char *data, int length);
 
@@ -551,16 +523,11 @@ static int rt5631_set_gain(struct snd_kcontrol *kcontrol,
 		}
 		#endif
 		/* set dmic gain */
-		if(output_source==OUTPUT_SOURCE_VOICE || input_source==INPUT_SOURCE_VR || input_agc==INPUT_SOURCE_AGC){
-			printk("%s(): use dsp for capture gain\n", __func__);
-			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x0000);	//boost 0dB
-		}else{
 			printk("%s(): use codec for capture gain\n", __func__);
 			if(project_id == TEGRA3_PROJECT_TF700T)
 			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x00ff, 0x0013);
 			else
 			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x000f);    //boost 22.5dB
-		}
 	}
 	mutex_unlock(&codec->mutex);
 
@@ -2145,121 +2112,6 @@ static int rt5631_codec_set_dai_pll(struct snd_soc_dai *codec_dai, int pll_id,
 	return ret;
 }
 
-static void DumpRT5631Q(struct snd_soc_codec *codec)
-{
-	int i = 0;
-	u16 reg;
-
-	for (i=0; i<0x7F; i++)
-	{
-		reg = snd_soc_read(codec, i);
-		printk("Read 0X%02x = 0X%04x\n", i, reg);
-	}
-}
-
-int audio_codec_open(struct inode *inode, struct file *filp)
-{
-	return 0;
-}
-
-long audio_codec_ioctl(struct file *filp,
-                 unsigned int cmd, unsigned long arg)
-{
-	char tmp[3];
-	u8 address;
-	u16 buf[1];
-	int err = 0;
-	int retval = 0;
-
-	if (_IOC_TYPE(cmd) != AUDIO_IOC_MAGIC) return -ENOTTY;
-	if (_IOC_NR(cmd) > AUDIO_IOC_MAXNR) return -ENOTTY;
-
-	/*
-	 * the direction is a bitmask, and VERIFY_WRITE catches R/W
-	 * transfers. `Type' is user-oriented, while
-	 * access_ok is kernel-oriented, so the concept of "read" and
-	 * "write" is reversed
-	 * access_ok: 1 (successful, accessable)
-	 */
-	if (_IOC_DIR(cmd) & _IOC_READ)
-		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
-	else if (_IOC_DIR(cmd) & _IOC_WRITE)
-		err =  !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
-	if (err) return -EFAULT;
-
-
-       /* cmd: the ioctl commend user-space asked */
-	switch(cmd){
-		case AUDIO_DUMP:
-			printk("AUDIO_CODEC: AUDIO_DUMP\n");
-			DumpRT5631Q(rt5631_codec);
-			break;
-
-		case AUDIO_I2C_READ:
-			if(copy_from_user(tmp, (void __user*)arg, sizeof(tmp))){
-				printk("AUDIO_CODEC : read data from user space fail\n");
-			}
-			address = (u8)tmp[0];
-			buf[0] = snd_soc_read(rt5631_codec, address);
-			tmp[1] = buf[0];
-			tmp[2] = buf[0]>>8;
-			printk("AUDIO_CODEC: Read 0X%02x = 0X%04x\n", tmp[0], (tmp[2] <<8 |tmp[1]));
-			if(copy_to_user((void __user*)arg, tmp, sizeof(tmp))){
-				printk("AUDIO_CODEC: AUDIO_I2C_READ error\n");
-			}
-			break;
-
-		case AUDIO_I2C_WRITE:
-			if(copy_from_user(tmp,(void __user *)arg,sizeof(tmp)))
-				return -EFAULT;
-			printk("AUDIO_CODEC: Write 0X%02x = 0X%04x\n",tmp[0],(tmp[2] <<8 |tmp[1]));
-
-			snd_soc_write(rt5631_codec, tmp[0], (tmp[2] <<8 |tmp[1]));
-			if(copy_to_user((void __user*)arg, tmp, sizeof(tmp)))
-				return -EFAULT;
-
-			break;
-		case AUDIO_CAPTURE_MODE:
-			switch(arg){
-				case INPUT_SOURCE_NORMAL:
-				case INPUT_SOURCE_VR:
-					printk("AUDIO_CODEC: Capture mode [%s]\n",	 arg == INPUT_SOURCE_NORMAL ? "NORMAL" : "VR");
-					input_source=arg;
-					break;
-				case INPUT_SOURCE_AGC:
-				case INPUT_SOURCE_NO_AGC:
-					printk("AUDIO_CODEC: Capture mode [%s]\n",	 arg == INPUT_SOURCE_AGC ? "AGC" : "NON-AGC");
-					input_agc = arg;
-					break;
-			       case OUTPUT_SOURCE_NORMAL:
-				case OUTPUT_SOURCE_VOICE:
-                                        printk("AUDIO_CODEC: Capture mode [%s]\n",
-                                                 arg == OUTPUT_SOURCE_NORMAL ? "NORMAL" : "VOICE");
-					output_source=arg;
-					break;
-				default:
-					break;
-			}
-			break;
-
-	  default:  /* redundant, as cmd was checked against MAXNR */
-		return -ENOTTY;
-	}
-	return retval;
-}
-
-struct file_operations audio_codec_fops = {
-	.owner =    THIS_MODULE,
-	.open =     audio_codec_open,
-	.unlocked_ioctl =    audio_codec_ioctl,
-};
-
-static struct miscdevice i2c_audio_device = {
-	.minor = MISC_DYNAMIC_MINOR,
-	.name = "rt5631",
-	.fops = &audio_codec_fops,
-};
-
 static int rt5631_set_bias_level(struct snd_soc_codec *codec,
 			enum snd_soc_bias_level level)
 {
@@ -2463,12 +2315,6 @@ static int rt5631_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	i2c_set_clientdata(i2c, rt5631);
-
-	ret = misc_register(&i2c_audio_device);
-	if (ret < 0) {
-		dev_err(&i2c->adapter->dev,
-			"ERROR: misc_register returned %d\n", ret);
-	}
 
 	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_rt5631,
 			rt5631_dai, ARRAY_SIZE(rt5631_dai));
