@@ -366,7 +366,6 @@ static const char *rt5631_hpr_source_sel[] = {"RIGHT HPVOL", "RIGHT DAC"};
 static const char *rt5631_eq_sel[] = {"NORMAL", "CLUB", "DANCE", "LIVE", "POP",
 				"ROCK", "OPPO", "TREBLE", "BASS"};
 
-
 static const struct soc_enum rt5631_enum[] = {
 SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 14, 4, rt5631_spol_source_sel),
 SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 10, 4, rt5631_spor_source_sel),
@@ -379,6 +378,21 @@ SOC_ENUM_SINGLE(RT5631_MIC_CTRL_2, 8, 9, rt5631_mic_boost),
 SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 3, 2, rt5631_hpl_source_sel),
 SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 2, 2, rt5631_hpr_source_sel),
 SOC_ENUM_SINGLE(0, 4, 9, rt5631_eq_sel),
+};
+
+static const DECLARE_TLV_DB_SCALE(out_vol_tlv, -4650, 150, 0);
+static const DECLARE_TLV_DB_SCALE(dac_vol_tlv, -95625, 375, 0);
+static const DECLARE_TLV_DB_SCALE(in_vol_tlv, -3450, 150, 0);
+/* {0, +20, +24, +30, +35, +40, +44, +50, +52}dB */
+static unsigned int mic_bst_tlv[] = {
+	TLV_DB_RANGE_HEAD(7),
+	0, 0, TLV_DB_SCALE_ITEM(0, 0, 0),
+	1, 1, TLV_DB_SCALE_ITEM(2000, 0, 0),
+	2, 2, TLV_DB_SCALE_ITEM(2400, 0, 0),
+	3, 5, TLV_DB_SCALE_ITEM(3000, 500, 0),
+	6, 6, TLV_DB_SCALE_ITEM(4400, 0, 0),
+	7, 7, TLV_DB_SCALE_ITEM(5000, 0, 0),
+	8, 8, TLV_DB_SCALE_ITEM(5200, 0, 0),
 };
 
 static int rt5631_dmic_get(struct snd_kcontrol *kcontrol,
@@ -534,7 +548,6 @@ static int rt5631_set_gain(struct snd_kcontrol *kcontrol,
 	return ret;
 }
 
-#if 0
 /* MIC Input Type */
 static const char *rt5631_input_mode[] = {
 	"Single ended", "Differential"};
@@ -552,45 +565,7 @@ static const SOC_ENUM_SINGLE_DECL(
 	rt5631_monoin_mode_enum, RT5631_MONO_INPUT_VOL,
 	RT5631_MONO_DIFF_INPUT_SHIFT, rt5631_input_mode);
 
-/* SPK Ratio Gain Control */
-static const char *rt5631_spk_ratio[] = {"1.00x", "1.09x", "1.27x", "1.44x",
-			"1.56x", "1.68x", "1.99x", "2.34x"};
-
-static const SOC_ENUM_SINGLE_DECL(
-	rt5631_spk_ratio_enum, RT5631_GEN_PUR_CTRL_REG,
-	RT5631_SPK_AMP_RATIO_CTRL_SHIFT, rt5631_spk_ratio);
-
-
-static const char *rt5631_spol_source_sel[] = {
-	"SPOLMIX", "MONOIN_RX", "VDAC", "DACL"};
-static const char *rt5631_spor_source_sel[] = {
-	"SPORMIX", "MONOIN_RX", "VDAC", "DACR"};
-static const char *rt5631_mono_source_sel[] = {"MONOMIX", "MONOIN_RX", "VDAC"};
-
-static const char *rt5631_hpl_source_sel[] = {"LEFT HPVOL", "LEFT DAC"};
-static const char *rt5631_hpr_source_sel[] = {"RIGHT HPVOL", "RIGHT DAC"};
-static const char *rt5631_eq_sel[] = {"NORMAL", "CLUB", "DANCE", "LIVE", "POP",
-				"ROCK", "OPPO", "TREBLE", "BASS"};
-
-static const struct soc_enum rt5631_enum[] = {
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 14, 4, rt5631_spol_source_sel),
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 10, 4, rt5631_spor_source_sel),
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 6, 3, rt5631_mono_source_sel),
-// Disable
-SOC_ENUM_SINGLE(RT5631_MIC_CTRL_1, 15, 2,  rt5631_input_mode),
-SOC_ENUM_SINGLE(RT5631_MIC_CTRL_1, 7, 2,  rt5631_input_mode),
-SOC_ENUM_SINGLE(RT5631_MONO_INPUT_VOL, 15, 2, rt5631_input_mode),
-//SOC_ENUM_SINGLE(RT5631_MIC_CTRL_2, 12, 9, mic_bst_tlv),
-//SOC_ENUM_SINGLE(RT5631_MIC_CTRL_2, 8, 9, mic_bst_tlv),
-// Disable
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 3, 2, rt5631_hpl_source_sel),
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 2, 2, rt5631_hpr_source_sel),
-SOC_ENUM_SINGLE(0, 4, 9, rt5631_eq_sel),
-};
-#endif
-
 static const struct snd_kcontrol_new rt5631_snd_controls[] = {
-#if 0
 	/* MIC */
 	SOC_ENUM("MIC1 Mode Control",  rt5631_mic1_mode_enum),
 	SOC_SINGLE_TLV("MIC1 Boost", RT5631_MIC_CTRL_2,
@@ -609,20 +584,17 @@ static const struct snd_kcontrol_new rt5631_snd_controls[] = {
 	SOC_DOUBLE_TLV("AXI Capture Volume", RT5631_AUX_IN_VOL,
 			RT5631_L_VOL_SHIFT, RT5631_R_VOL_SHIFT,
 			RT5631_VOL_MASK, 1, in_vol_tlv),
-
 	/* DAC */
 	SOC_DOUBLE_TLV("PCM Playback Volume", RT5631_STEREO_DAC_VOL_2,
 			RT5631_L_VOL_SHIFT, RT5631_R_VOL_SHIFT,
 			RT5631_DAC_VOL_MASK, 1, dac_vol_tlv),
 	SOC_DOUBLE("PCM Playback Switch", RT5631_STEREO_DAC_VOL_1,
 			RT5631_L_MUTE_SHIFT, RT5631_R_MUTE_SHIFT, 1, 1),
-
 	/* AXO */
 	SOC_SINGLE("AXO1 Playback Switch", RT5631_MONO_AXO_1_2_VOL,
 				RT5631_L_MUTE_SHIFT, 1, 1),
 	SOC_SINGLE("AXO2 Playback Switch", RT5631_MONO_AXO_1_2_VOL,
 				RT5631_R_VOL_SHIFT, 1, 1),
-
 	/* OUTVOL */
 	SOC_DOUBLE("OUTVOL Channel Switch", RT5631_SPK_OUT_VOL,
 		RT5631_L_EN_SHIFT, RT5631_R_EN_SHIFT, 1, 0),
@@ -643,32 +615,8 @@ static const struct snd_kcontrol_new rt5631_snd_controls[] = {
 		RT5631_L_VOL_SHIFT, RT5631_R_VOL_SHIFT,
 		RT5631_VOL_MASK, 1, out_vol_tlv),
 
-	/* DMIC */
-	SOC_SINGLE_EXT("DMIC Switch", 0, 0, 1, 0,
-		rt5631_dmic_get, rt5631_dmic_put),
-	SOC_DOUBLE("DMIC Capture Switch", RT5631_DIG_MIC_CTRL,
-		RT5631_DMIC_L_CH_MUTE_SHIFT,
-		RT5631_DMIC_R_CH_MUTE_SHIFT, 1, 1),
-#endif
 
-//Disable
-SOC_ENUM("MIC1 Mode Control",  rt5631_enum[3]),
-SOC_ENUM("MIC1 Boost", rt5631_enum[6]),
-SOC_ENUM("MIC2 Mode Control", rt5631_enum[4]),
-SOC_ENUM("MIC2 Boost", rt5631_enum[7]),
-SOC_ENUM("MONOIN Mode Control", rt5631_enum[5]),
-SOC_DOUBLE("PCM Playback Volume", RT5631_STEREO_DAC_VOL_2, 8, 0, 255, 1),
-SOC_DOUBLE("PCM Playback Switch", RT5631_STEREO_DAC_VOL_1, 15, 7, 1, 1),
-SOC_DOUBLE("MONOIN_RX Capture Volume", RT5631_MONO_INPUT_VOL, 8, 0, 31, 1),
-SOC_DOUBLE("AXI Capture Volume", RT5631_AUX_IN_VOL, 8, 0, 31, 1),
-SOC_SINGLE("AXO1 Playback Switch", RT5631_MONO_AXO_1_2_VOL, 15, 1, 1),
-SOC_SINGLE("AXO2 Playback Switch", RT5631_MONO_AXO_1_2_VOL, 7, 1, 1),
-SOC_DOUBLE("OUTVOL Playback Volume", RT5631_MONO_AXO_1_2_VOL, 8, 0, 31, 1),
-SOC_DOUBLE("Speaker Playback Switch", RT5631_SPK_OUT_VOL, 15, 7, 1, 1),
-SOC_DOUBLE("Speaker Playback Volume", RT5631_SPK_OUT_VOL, 8, 0, 63, 1),
-SOC_SINGLE("MONO Playback Switch", RT5631_MONO_AXO_1_2_VOL, 13, 1, 1),
-SOC_DOUBLE("HP Playback Switch", RT5631_HP_OUT_VOL, 15, 7, 1, 1),
-SOC_DOUBLE("HP Playback Volume", RT5631_HP_OUT_VOL, 8, 0, 31, 1),
+
 SOC_SINGLE_EXT("DMIC Capture Switch", 0, 2, 1, 0,
 	rt5631_dmic_get, rt5631_dmic_put),
 SOC_ENUM_EXT("EQ Mode", rt5631_enum[10], rt5631_eq_sel_get, rt5631_eq_sel_put),
@@ -2050,6 +1998,7 @@ static int rt5631_probe(struct snd_soc_codec *codec)
 	msleep(80);
 	snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3, 
         RT5631_PWR_FAST_VREF_CTRL, RT5631_PWR_FAST_VREF_CTRL);
+
 	rt5631_reg_init(codec);
 
 	/* power off ClassD auto Recovery */
