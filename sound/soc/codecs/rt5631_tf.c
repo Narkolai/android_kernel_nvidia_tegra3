@@ -1259,82 +1259,6 @@ static int config_common_power(struct snd_soc_codec *codec, bool pmu)
 	return 0;
 }
 
-static int adc_event(struct snd_soc_dapm_widget *w,
-	struct snd_kcontrol *kcontrol, int event)
-{
-	struct snd_soc_codec *codec = w->codec;
-	static bool pmu;
-
-	switch (event) {
-	case SND_SOC_DAPM_POST_PMD:
-		pw_ladc = 0;
-		if (pmu) {
-			config_common_power(codec, false);
-			pmu = false;
-		}
-		break;
-
-	case SND_SOC_DAPM_PRE_PMU:
-		if (!pmu) {
-			config_common_power(codec, true);
-			pmu = true;
-		}
-		break;
-
-	case SND_SOC_DAPM_POST_PMU:
-		pw_ladc = 1;
-
-		#if ENABLE_ALC
-		printk("adc_event --ALC_SND_SOC_DAPM_POST_PMU\n");
-		ADC_flag = true;
-		if(!spk_out_flag && DMIC_flag ){
-			if(project_id == TEGRA3_PROJECT_TF700T){
-				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
-				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x000e);
-				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe099);
-			}else{
-				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
-				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x0006);
-				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe09a);
-			}
-		}else if(!spk_out_flag && !DMIC_flag ){
-			if(project_id == TEGRA3_PROJECT_TF700T){
-				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
-				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x000a);
-				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe090);
-				snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x0005);
-			}else{
-				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
-				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x0004);
-				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe084);
-			}
-		}
-		msleep(DEPOP_DELAY);
-		snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x8080, 0x0000);
-
-		#endif
-		break;
-
-	case SND_SOC_DAPM_PRE_PMD:
-		#if ENABLE_ALC
-		printk("adc_event --ALC_SND_SOC_DAPM_PRE_PMD\n");
-		ADC_flag = false;
-		if(!spk_out_flag ){
-			//Disable ALC
-			snd_soc_update_bits(codec, RT5631_ALC_CTRL_3, 0xf000, 0x2000);
-			}
-		#endif
-		snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x8080, 0x8080);
-
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
 static int dac_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
@@ -1402,12 +1326,10 @@ SND_SOC_DAPM_MIXER("RECMIXR Mixer", RT5631_PWR_MANAG_ADD2, 10, 0,
 		ARRAY_SIZE(rt5631_recmixr_mixer_controls)),
 SND_SOC_DAPM_MIXER("ADC Mixer", SND_SOC_NOPM, 0, 0, NULL, 0),
 
-SND_SOC_DAPM_ADC_E("Left ADC", "Left ADC HIFI Capture",
-		RT5631_PWR_MANAG_ADD1, 11, 0,
-		adc_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_ADC_E("Right ADC", "Right ADC HIFI Capture",
-		RT5631_PWR_MANAG_ADD1, 10, 0,
-		adc_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+SND_SOC_DAPM_ADC("Left ADC", "Left ADC HIFI Capture",
+		RT5631_PWR_MANAG_ADD1, 11, 0),
+SND_SOC_DAPM_ADC("Right ADC", "Right ADC HIFI Capture",
+		RT5631_PWR_MANAG_ADD1, 10, 0),
 SND_SOC_DAPM_DAC_E("Left DAC", "Left DAC HIFI Playback",
 		RT5631_PWR_MANAG_ADD1, 9, 0,
 		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
