@@ -358,8 +358,8 @@ static const char *rt5631_input_mode_source_sel[] = {
 	"Single-end", "Differential"};
 static const char *rt5631_mic_boost[] = {"Bypass", "+20db", "+24db", "+30db",
 			"+35db", "+40db", "+44db", "+50db", "+52db"};
-static const char *rt5631_hpl_source_sel[] = {"LEFT HPVOL", "LEFT DAC"};
-static const char *rt5631_hpr_source_sel[] = {"RIGHT HPVOL", "RIGHT DAC"};
+static const char *rt5631_hpl_source_sel[] = {"Left HPVOL", "Left DAC"};
+static const char *rt5631_hpr_source_sel[] = {"Right HPVOL", "Right DAC"};
 static const char *rt5631_eq_sel[] = {"NORMAL", "CLUB", "DANCE", "LIVE", "POP",
 				"ROCK", "OPPO", "TREBLE", "BASS"};
 
@@ -1552,7 +1552,7 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 
 	{"SPKL Amp", NULL, "SPOL Mux"},
 	{"SPKR Amp", NULL, "SPOR Mux"},
-	{"Mono Amp", NULL, "Mono Mux"},
+	{"Mono Amp", NULL, "MONO Mux"},
 
 	{"AUXO1", NULL, "AXO1MIX Mixer"},
 	{"AUXO2", NULL, "AXO2MIX Mixer"},
