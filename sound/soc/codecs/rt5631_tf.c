@@ -1270,316 +1270,6 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-
-static void hp_depop_mode2_onebit(struct snd_soc_codec *codec, int enable)
-{
-	unsigned int soft_vol, hp_zc;
-
-	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2, RT5631_EN_ONE_BIT_DEPOP, 0);
-
-	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
-	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
-	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
-	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
-	if (enable) {
-		rt5631_write_index(codec, RT5631_TEST_MODE_CTRL, 0x84c0);
-		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x309f);
-		rt5631_write_index(codec, RT5631_CP_INTL_REG2, 0x6530);
-		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_2,
-				RT5631_EN_CAP_FREE_DEPOP);
-	} else {
-		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_2, 0);
-		msleep(100);
-	}
-
-	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
-	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc);
-
-	return;
-}
-
-static void hp_mute_unmute_depop_onebit(struct snd_soc_codec *codec, int enable)
-{
-	unsigned int soft_vol, hp_zc;
-
-	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2, RT5631_EN_ONE_BIT_DEPOP, 0);
-	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
-	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
-	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
-	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
-	if (enable) {
-		msleep(10);
-		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x307f);
-		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL, RT5631_L_MUTE | RT5631_R_MUTE, 0);
-		msleep(300);
-
-	} else {
-		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL,
-			RT5631_L_MUTE | RT5631_R_MUTE, RT5631_L_MUTE | RT5631_R_MUTE);
-		msleep(100);
-	}
-	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
-	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc);
-
-	return;
-}
-
-static void hp_depop2(struct snd_soc_codec *codec, int enable)
-{
-	unsigned int soft_vol, hp_zc;
-
-	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2,
-		RT5631_EN_ONE_BIT_DEPOP, RT5631_EN_ONE_BIT_DEPOP);
-	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
-	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
-	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
-	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
-	if (enable) {
-		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x303e);
-		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
-			RT5631_PWR_CHARGE_PUMP | RT5631_PWR_HP_L_AMP | RT5631_PWR_HP_R_AMP,
-			RT5631_PWR_CHARGE_PUMP | RT5631_PWR_HP_L_AMP | RT5631_PWR_HP_R_AMP);
-		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
-			RT5631_POW_ON_SOFT_GEN | RT5631_EN_DEPOP2_FOR_HP);
-		msleep(100);
-		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
-			RT5631_PWR_HP_DEPOP_DIS, RT5631_PWR_HP_DEPOP_DIS);
-	} else {
-		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x303F);
-		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
-			RT5631_POW_ON_SOFT_GEN | RT5631_EN_MUTE_UNMUTE_DEPOP |
-			RT5631_PD_HPAMP_L_ST_UP | RT5631_PD_HPAMP_R_ST_UP);
-		msleep(75);
-		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
-			RT5631_POW_ON_SOFT_GEN | RT5631_PD_HPAMP_L_ST_UP | RT5631_PD_HPAMP_R_ST_UP);
-		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3, RT5631_PWR_HP_DEPOP_DIS, 0);
-		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
-			RT5631_POW_ON_SOFT_GEN | RT5631_EN_DEPOP2_FOR_HP |
-			RT5631_PD_HPAMP_L_ST_UP | RT5631_PD_HPAMP_R_ST_UP);
-		msleep(80);
-		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1, RT5631_POW_ON_SOFT_GEN);
-		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
-			RT5631_PWR_CHARGE_PUMP | RT5631_PWR_HP_L_AMP | RT5631_PWR_HP_R_AMP, 0);
-	}
-
-	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
-	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc);
-
-	return;
-}
-
-static void hp_mute_unmute_depop(struct snd_soc_codec *codec, int enable)
-{
-	unsigned int soft_vol, hp_zc;
-
-	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2,
-		RT5631_EN_ONE_BIT_DEPOP, RT5631_EN_ONE_BIT_DEPOP);
-	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
-	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
-	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
-	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
-	if (enable) {
-		msleep(10);
-		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x302f);
-		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
-			RT5631_POW_ON_SOFT_GEN | RT5631_EN_MUTE_UNMUTE_DEPOP |
-			RT5631_EN_HP_R_M_UN_MUTE_DEPOP | RT5631_EN_HP_L_M_UN_MUTE_DEPOP);
-		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL, RT5631_L_MUTE | RT5631_R_MUTE, 0);
-		msleep(160);
-	} else {
-		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x302f);
-		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
-			RT5631_POW_ON_SOFT_GEN | RT5631_EN_MUTE_UNMUTE_DEPOP |
-			RT5631_EN_HP_R_M_UN_MUTE_DEPOP | RT5631_EN_HP_L_M_UN_MUTE_DEPOP);
-		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL,
-			RT5631_L_MUTE | RT5631_R_MUTE, RT5631_L_MUTE | RT5631_R_MUTE);
-		msleep(150);
-	}
-
-	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
-	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc);
-
-	return;
-}
-
-static int dac_to_hp_event(struct snd_soc_dapm_widget *w,
-		struct snd_kcontrol *kcontrol, int event)
-{
-	struct snd_soc_codec *codec = w->codec;
-	struct rt5631_priv *rt5631 = snd_soc_codec_get_drvdata(codec);
-	static bool hp_en;
-
-	switch (event) {
-	case SND_SOC_DAPM_PRE_PMD:
-
-		if (hp_en) {
-			if (rt5631->codec_version) {
-				hp_mute_unmute_depop_onebit(codec, 0);
-				hp_depop_mode2_onebit(codec, 0);
-			} else {
-				hp_mute_unmute_depop(codec, 0);
-				hp_depop2(codec, 0);
-			}
-			hp_en = false;
-		}
-		break;
-
-	case SND_SOC_DAPM_POST_PMU:
-		if (!hp_en) {
-			if (rt5631->codec_version) {
-				hp_depop_mode2_onebit(codec, 1);
-				hp_mute_unmute_depop_onebit(codec, 1);
-			} else {
-				hp_depop2(codec, 1);
-				hp_mute_unmute_depop(codec, 1);
-			}
-			hp_en = true;
-		}
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
-static int mic_event(struct snd_soc_dapm_widget *w,
-	struct snd_kcontrol *kcontrol, int event)
-{
-	struct snd_soc_codec *codec = w->codec;
-	int val_mic1, val_mic2;
-
-	val_mic1 = snd_soc_read(codec, RT5631_PWR_MANAG_ADD2) &
-				RT5631_PWR_MIC1_BOOT_GAIN;
-	val_mic2 = snd_soc_read(codec, RT5631_PWR_MANAG_ADD2) &
-				RT5631_PWR_MIC2_BOOT_GAIN;
-	switch (event) {
-	case SND_SOC_DAPM_POST_PMU:
-		/*
-		 * If microphone is stereo, need not copy ADC channel
-		 * If mic1 is used, copy ADC left to right
-		 * If mic2 is used, copy ADC right to left
-		 */
-		if (val_mic1 && val_mic2)
-			snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-							0xc000, 0x0000);
-		else if (val_mic1)
-			snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-							0xc000, 0x4000);
-		else if (val_mic2)
-			snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-							0xc000, 0x8000);
-		else
-			snd_soc_update_bits(codec, RT5631_INT_ST_IRQ_CTRL_2,
-							0xc000, 0x0000);
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
-static int auxo1_event(struct snd_soc_dapm_widget *w,
-	struct snd_kcontrol *kcontrol, int event)
-{
-	struct snd_soc_codec *codec = w->codec;
-	static bool aux1_en;
-
-	switch (event) {
-	case SND_SOC_DAPM_PRE_PMD:
-		if (aux1_en) {
-			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
-						RT5631_L_MUTE, RT5631_L_MUTE);
-			aux1_en = false;
-		}
-		break;
-
-	case SND_SOC_DAPM_POST_PMU:
-		if (!aux1_en) {
-			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
-						RT5631_L_MUTE, 0);
-			aux1_en = true;
-		}
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
-static int auxo2_event(struct snd_soc_dapm_widget *w,
-	struct snd_kcontrol *kcontrol, int event)
-{
-	struct snd_soc_codec *codec = w->codec;
-	static bool aux2_en;
-	char mute_all_audioDock[2] = {0xFF, 0x01};
-	char unmute_all_audioDock[2] = {0x00, 0x01};
-
-	switch (event) {
-	case SND_SOC_DAPM_PRE_PMD:
-		asusAudiodec_i2c_write_data(mute_all_audioDock, 2);
-		if (aux2_en) {
-			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
-						RT5631_R_MUTE, RT5631_R_MUTE);
-			aux2_en = false;
-		}
-		break;
-
-	case SND_SOC_DAPM_POST_PMU:
-		if (!aux2_en) {
-			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
-						RT5631_R_MUTE, 0);
-			aux2_en = true;
-		}
-		asusAudiodec_i2c_write_data(unmute_all_audioDock, 2);
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
-static int mono_event(struct snd_soc_dapm_widget *w,
-	struct snd_kcontrol *kcontrol, int event)
-{
-	struct snd_soc_codec *codec = w->codec;
-	static bool mono_en;
-
-	switch (event) {
-	case SND_SOC_DAPM_PRE_PMD:
-		if (mono_en) {
-			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
-						RT5631_MUTE_MONO, RT5631_MUTE_MONO);
-			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
-						RT5631_PWR_MONO_DEPOP_DIS, 0);
-			mono_en = false;
-		}
-		break;
-
-	case SND_SOC_DAPM_POST_PMU:
-		if (!mono_en) {
-			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
-				RT5631_PWR_MONO_DEPOP_DIS, RT5631_PWR_MONO_DEPOP_DIS);
-			snd_soc_update_bits(codec, RT5631_MONO_AXO_1_2_VOL,
-						RT5631_MUTE_MONO, 0);
-			mono_en = true;
-		}
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
 /**
  * config_common_power - control all common power of codec system
  * @pmu: power up or not
@@ -1799,10 +1489,8 @@ SND_SOC_DAPM_PGA_E("Left HP Vol", RT5631_PWR_MANAG_ADD4, 11, 0, NULL, 0,
 SND_SOC_DAPM_PGA_E("Right HP Vol", RT5631_PWR_MANAG_ADD4, 10, 0, NULL, 0,
 		hp_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 
-SND_SOC_DAPM_PGA_E("Left DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0,
-	dac_to_hp_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("Right DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0,
-	dac_to_hp_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+SND_SOC_DAPM_PGA("Left DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Right DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0),
 
 SND_SOC_DAPM_PGA("Left Out Vol", RT5631_PWR_MANAG_ADD4, 13, 0, NULL, 0),
 SND_SOC_DAPM_PGA("Right Out Vol", RT5631_PWR_MANAG_ADD4, 12, 0, NULL, 0),
@@ -1829,8 +1517,7 @@ SND_SOC_DAPM_MUX("Mono Mux", SND_SOC_NOPM, 0, 0, &rt5631_mono_mux_control),
 SND_SOC_DAPM_MUX("HPL Mux", SND_SOC_NOPM, 0, 0, &rt5631_hpl_mux_control),
 SND_SOC_DAPM_MUX("HPR Mux", SND_SOC_NOPM, 0, 0, &rt5631_hpr_mux_control),
 
-SND_SOC_DAPM_PGA_E("Mono Amp", RT5631_PWR_MANAG_ADD3, 7, 0, NULL, 0,
-		mono_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+SND_SOC_DAPM_PGA("Mono Amp", RT5631_PWR_MANAG_ADD3, 7, 0, NULL, 0),
 SND_SOC_DAPM_PGA_E("SPKL Amp", SND_SOC_NOPM, 0, 0, NULL, 0,
 		spk_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_POST_PMU |SND_SOC_DAPM_PRE_PMD),
 SND_SOC_DAPM_PGA_E("SPKR Amp", SND_SOC_NOPM, 1, 0, NULL, 0,
@@ -2393,7 +2080,6 @@ static int rt5631_probe(struct snd_soc_codec *codec)
 	pr_info("RT5631 initial ok!\n");
 
 #if defined(CONFIG_SND_HWDEP) || defined(CONFIG_SND_HWDEP_MODULE)
-    printk("************************realtek_ce_init_hwdep*************************************\n");
     realtek_ce_init_hwdep(rt5631_codec);
 #endif
 
@@ -2417,11 +2103,10 @@ static int rt5631_suspend(struct snd_soc_codec *codec)
 
 static int rt5631_resume(struct snd_soc_codec *codec)
 {
-	struct rt5631_priv *rt5631 = snd_soc_codec_get_drvdata(codec);
 
-	printk(KERN_INFO "%s+ #####\n", __func__);
 	snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
-		RT5631_PWR_VREF | RT5631_PWR_MAIN_BIAS, RT5631_PWR_VREF | RT5631_PWR_MAIN_BIAS);
+		RT5631_PWR_VREF | RT5631_PWR_MAIN_BIAS, 
+        RT5631_PWR_VREF | RT5631_PWR_MAIN_BIAS);
 	msleep(110);
 	snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
 		RT5631_PWR_FAST_VREF_CTRL, RT5631_PWR_FAST_VREF_CTRL);
