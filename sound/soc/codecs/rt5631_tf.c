@@ -681,6 +681,239 @@ SOC_SINGLE_BOOL_EXT("Recording Gain", 0,
 	rt5631_get_gain, rt5631_set_gain),
 };
 
+/**
+ * onebit_depop_power_stage - auto depop in power stage.
+ * @enable: power on/off
+ *
+ * When power on/off headphone, the depop sequence is done by hardware.
+ */
+static void onebit_depop_power_stage(struct snd_soc_codec *codec, int enable)
+{
+	unsigned int soft_vol, hp_zc;
+
+	/* enable one-bit depop function */
+	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2,
+				RT5631_EN_ONE_BIT_DEPOP, 0);
+
+	/* keep soft volume and zero crossing setting */
+	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
+	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
+	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
+	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
+	if (enable) {
+		/* config one-bit depop parameter */
+		rt5631_write_index(codec, RT5631_TEST_MODE_CTRL, 0x84c0);
+		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x309f);
+		rt5631_write_index(codec, RT5631_CP_INTL_REG2, 0x6530);
+		/* power on capless block */
+		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_2,
+				RT5631_EN_CAP_FREE_DEPOP);
+	} else {
+		/* power off capless block */
+		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_2, 0);
+		msleep(100);
+	}
+
+	/* recover soft volume and zero crossing setting */
+	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
+	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc);
+}
+
+/**
+ * onebit_depop_mute_stage - auto depop in mute stage.
+ * @enable: mute/unmute
+ *
+ * When mute/unmute headphone, the depop sequence is done by hardware.
+ */
+static void onebit_depop_mute_stage(struct snd_soc_codec *codec, int enable)
+{
+	unsigned int soft_vol, hp_zc;
+
+	/* enable one-bit depop function */
+	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2,
+				RT5631_EN_ONE_BIT_DEPOP, 0);
+
+	/* keep soft volume and zero crossing setting */
+	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
+	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
+	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
+	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
+	if (enable) {
+		schedule_timeout_uninterruptible(msecs_to_jiffies(10));
+		/* config one-bit depop parameter */
+		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x307f);
+		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL,
+				RT5631_L_MUTE | RT5631_R_MUTE, 0);
+		msleep(300);
+	} else {
+		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL,
+			RT5631_L_MUTE | RT5631_R_MUTE,
+			RT5631_L_MUTE | RT5631_R_MUTE);
+		msleep(100);
+	}
+
+	/* recover soft volume and zero crossing setting */
+	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
+	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc);
+}
+
+/**
+ * onebit_depop_power_stage - step by step depop sequence in power stage.
+ * @enable: power on/off
+ *
+ * When power on/off headphone, the depop sequence is done in step by step.
+ */
+static void depop_seq_power_stage(struct snd_soc_codec *codec, int enable)
+{
+	unsigned int soft_vol, hp_zc;
+
+	/* depop control by register */
+	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2,
+		RT5631_EN_ONE_BIT_DEPOP, RT5631_EN_ONE_BIT_DEPOP);
+
+	/* keep soft volume and zero crossing setting */
+	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
+	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
+	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
+	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
+	if (enable) {
+		/* config depop sequence parameter */
+		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x303e);
+
+		/* power on headphone and charge pump */
+		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
+			RT5631_PWR_CHARGE_PUMP | RT5631_PWR_HP_L_AMP |
+			RT5631_PWR_HP_R_AMP,
+			RT5631_PWR_CHARGE_PUMP | RT5631_PWR_HP_L_AMP |
+			RT5631_PWR_HP_R_AMP);
+
+		/* power on soft generator and depop mode2 */
+		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
+			RT5631_POW_ON_SOFT_GEN | RT5631_EN_DEPOP2_FOR_HP);
+		msleep(100);
+
+		/* stop depop mode */
+		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
+			RT5631_PWR_HP_DEPOP_DIS, RT5631_PWR_HP_DEPOP_DIS);
+	} else {
+		/* config depop sequence parameter */
+		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x303F);
+		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
+			RT5631_POW_ON_SOFT_GEN | RT5631_EN_MUTE_UNMUTE_DEPOP |
+			RT5631_PD_HPAMP_L_ST_UP | RT5631_PD_HPAMP_R_ST_UP);
+		msleep(75);
+		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
+			RT5631_POW_ON_SOFT_GEN | RT5631_PD_HPAMP_L_ST_UP |
+			RT5631_PD_HPAMP_R_ST_UP);
+
+		/* start depop mode */
+		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
+				RT5631_PWR_HP_DEPOP_DIS, 0);
+
+		/* config depop sequence parameter */
+		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
+			RT5631_POW_ON_SOFT_GEN | RT5631_EN_DEPOP2_FOR_HP |
+			RT5631_PD_HPAMP_L_ST_UP | RT5631_PD_HPAMP_R_ST_UP);
+		msleep(80);
+		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
+			RT5631_POW_ON_SOFT_GEN);
+
+		/* power down headphone and charge pump */
+		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
+			RT5631_PWR_CHARGE_PUMP | RT5631_PWR_HP_L_AMP |
+			RT5631_PWR_HP_R_AMP, 0);
+	}
+
+	/* recover soft volume and zero crossing setting */
+	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
+	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc);
+}
+
+/**
+ * depop_seq_mute_stage - step by step depop sequence in mute stage.
+ * @enable: mute/unmute
+ *
+ * When mute/unmute headphone, the depop sequence is done in step by step.
+ */
+static void depop_seq_mute_stage(struct snd_soc_codec *codec, int enable)
+{
+	unsigned int soft_vol, hp_zc;
+
+	/* depop control by register */
+	snd_soc_update_bits(codec, RT5631_DEPOP_FUN_CTRL_2,
+		RT5631_EN_ONE_BIT_DEPOP, RT5631_EN_ONE_BIT_DEPOP);
+
+	/* keep soft volume and zero crossing setting */
+	soft_vol = snd_soc_read(codec, RT5631_SOFT_VOL_CTRL);
+	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, 0);
+	hp_zc = snd_soc_read(codec, RT5631_INT_ST_IRQ_CTRL_2);
+	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc & 0xf7ff);
+	if (enable) {
+		schedule_timeout_uninterruptible(msecs_to_jiffies(10));
+
+		/* config depop sequence parameter */
+		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x302f);
+		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
+			RT5631_POW_ON_SOFT_GEN | RT5631_EN_MUTE_UNMUTE_DEPOP |
+			RT5631_EN_HP_R_M_UN_MUTE_DEPOP |
+			RT5631_EN_HP_L_M_UN_MUTE_DEPOP);
+
+		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL,
+				RT5631_L_MUTE | RT5631_R_MUTE, 0);
+		msleep(160);
+	} else {
+		/* config depop sequence parameter */
+		rt5631_write_index(codec, RT5631_SPK_INTL_CTRL, 0x302f);
+		snd_soc_write(codec, RT5631_DEPOP_FUN_CTRL_1,
+			RT5631_POW_ON_SOFT_GEN | RT5631_EN_MUTE_UNMUTE_DEPOP |
+			RT5631_EN_HP_R_M_UN_MUTE_DEPOP |
+			RT5631_EN_HP_L_M_UN_MUTE_DEPOP);
+
+		snd_soc_update_bits(codec, RT5631_HP_OUT_VOL,
+			RT5631_L_MUTE | RT5631_R_MUTE,
+			RT5631_L_MUTE | RT5631_R_MUTE);
+		msleep(150);
+	}
+
+	/* recover soft volume and zero crossing setting */
+	snd_soc_write(codec, RT5631_SOFT_VOL_CTRL, soft_vol);
+	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, hp_zc);
+}
+
+static int hp_event(struct snd_soc_dapm_widget *w,
+	struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_codec *codec = w->codec;
+	struct rt5631_priv *rt5631 = snd_soc_codec_get_drvdata(codec);
+
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMD:
+		if (rt5631->codec_version) {
+			onebit_depop_mute_stage(codec, 0);
+			onebit_depop_power_stage(codec, 0);
+		} else {
+			depop_seq_mute_stage(codec, 0);
+			depop_seq_power_stage(codec, 0);
+		}
+		break;
+
+	case SND_SOC_DAPM_POST_PMU:
+		if (rt5631->codec_version) {
+			onebit_depop_power_stage(codec, 1);
+			onebit_depop_mute_stage(codec, 1);
+		} else {
+			depop_seq_power_stage(codec, 1);
+			depop_seq_mute_stage(codec, 1);
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static int set_dmic_params(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
@@ -1169,50 +1402,6 @@ static void hp_mute_unmute_depop(struct snd_soc_codec *codec, int enable)
 	return;
 }
 
-static int hp_event(struct snd_soc_dapm_widget *w,
-	struct snd_kcontrol *kcontrol, int event)
-{
-	struct snd_soc_codec *codec = w->codec;
-	struct rt5631_priv *rt5631 = snd_soc_codec_get_drvdata(codec);
-	static bool hp_en;
-	int pu_l, pu_r;
-
-	pu_l = snd_soc_read(codec, RT5631_PWR_MANAG_ADD4) & RT5631_PWR_HP_L_OUT_VOL;
-	pu_r = snd_soc_read(codec, RT5631_PWR_MANAG_ADD4) & RT5631_PWR_HP_R_OUT_VOL;
-	switch (event) {
-	case SND_SOC_DAPM_PRE_PMD:
-		if ((pu_l && pu_r) && hp_en) {
-			if (rt5631->codec_version) {
-				hp_mute_unmute_depop_onebit(codec, 0);
-				hp_depop_mode2_onebit(codec, 0);
-			} else {
-				hp_mute_unmute_depop(codec, 0);
-				hp_depop2(codec, 0);
-			}
-			hp_en = false;
-		}
-		break;
-
-	case SND_SOC_DAPM_POST_PMU:
-		if ((pu_l && pu_r) && !hp_en) {
-			if (rt5631->codec_version) {
-				hp_depop_mode2_onebit(codec, 1);
-				hp_mute_unmute_depop_onebit(codec, 1);
-			} else {
-				hp_depop2(codec, 1);
-				hp_mute_unmute_depop(codec, 1);
-			}
-			hp_en = true;
-		}
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
 static int dac_to_hp_event(struct snd_soc_dapm_widget *w,
 		struct snd_kcontrol *kcontrol, int event)
 {
@@ -1559,10 +1748,8 @@ SND_SOC_DAPM_INPUT("MONOIN_RXP"),
 SND_SOC_DAPM_MICBIAS("Mic Bias1", RT5631_PWR_MANAG_ADD2, 3, 0),
 SND_SOC_DAPM_MICBIAS("Mic Bias2", RT5631_PWR_MANAG_ADD2, 2, 0),
 
-SND_SOC_DAPM_PGA_E("Mic1 Boost", RT5631_PWR_MANAG_ADD2, 5, 0, NULL, 0,
-		mic_event, SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("Mic2 Boost", RT5631_PWR_MANAG_ADD2, 4, 0, NULL, 0,
-		mic_event, SND_SOC_DAPM_POST_PMU),
+SND_SOC_DAPM_PGA("Mic1 Boost", RT5631_PWR_MANAG_ADD2, 5, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Mic2 Boost", RT5631_PWR_MANAG_ADD2, 4, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MONOIN_RXP Boost", RT5631_PWR_MANAG_ADD4, 7, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MONOIN_RXN Boost", RT5631_PWR_MANAG_ADD4, 6, 0, NULL, 0),
 SND_SOC_DAPM_PGA("AXIL Boost", RT5631_PWR_MANAG_ADD4, 9, 0, NULL, 0),
@@ -1620,10 +1807,9 @@ SND_SOC_DAPM_PGA_E("Right DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0,
 SND_SOC_DAPM_PGA("Left Out Vol", RT5631_PWR_MANAG_ADD4, 13, 0, NULL, 0),
 SND_SOC_DAPM_PGA("Right Out Vol", RT5631_PWR_MANAG_ADD4, 12, 0, NULL, 0),
 
-SND_SOC_DAPM_MIXER_E("AXO1MIX Mixer", RT5631_PWR_MANAG_ADD3, 11, 0,
+SND_SOC_DAPM_MIXER("AXO1MIX Mixer", RT5631_PWR_MANAG_ADD3, 11, 0,
 		&rt5631_AXO1MIX_mixer_controls[0],
-		ARRAY_SIZE(rt5631_AXO1MIX_mixer_controls),
-		auxo1_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+		ARRAY_SIZE(rt5631_AXO1MIX_mixer_controls)),
 SND_SOC_DAPM_MIXER("SPOLMIX Mixer", SND_SOC_NOPM, 0, 0,
 		&rt5631_spolmix_mixer_controls[0],
 		ARRAY_SIZE(rt5631_spolmix_mixer_controls)),
@@ -1633,10 +1819,9 @@ SND_SOC_DAPM_MIXER("MONOMIX Mixer", RT5631_PWR_MANAG_ADD3, 9, 0,
 SND_SOC_DAPM_MIXER("SPORMIX Mixer", SND_SOC_NOPM, 0, 0,
 		&rt5631_spormix_mixer_controls[0],
 		ARRAY_SIZE(rt5631_spormix_mixer_controls)),
-SND_SOC_DAPM_MIXER_E("AXO2MIX Mixer", RT5631_PWR_MANAG_ADD3, 10, 0,
+SND_SOC_DAPM_MIXER("AXO2MIX Mixer", RT5631_PWR_MANAG_ADD3, 10, 0,
 		&rt5631_AXO2MIX_mixer_controls[0],
-		ARRAY_SIZE(rt5631_AXO2MIX_mixer_controls),
-		auxo2_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
+		ARRAY_SIZE(rt5631_AXO2MIX_mixer_controls)),
 
 SND_SOC_DAPM_MUX("SPOL Mux", SND_SOC_NOPM, 0, 0, &rt5631_spol_mux_control),
 SND_SOC_DAPM_MUX("SPOR Mux", SND_SOC_NOPM, 0, 0, &rt5631_spor_mux_control),
