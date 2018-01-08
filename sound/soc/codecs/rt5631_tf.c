@@ -44,9 +44,7 @@
 #define RT5631_3V3_POWER_EN TEGRA_GPIO_PP0
 
 #define RT5631_VERSION "0.01 alsa 1.0.24"
-#define RETRY_MAX (5)
 #define TF700T_PCB_ER1 (0x3)
-#define DEPOP_DELAY (1)
 
 struct rt5631_priv {
 	int codec_version;
@@ -109,7 +107,6 @@ static void rt5631_write_index(struct snd_soc_codec *codec,
 {
 	snd_soc_write(codec, RT5631_INDEX_ADD, reg);
 	snd_soc_write(codec, RT5631_INDEX_DATA, value);
-	return;
 }
 
 /**
@@ -146,7 +143,7 @@ static void rt5631_write_index_mask(struct snd_soc_codec *codec,
 	return;
 }
 
-static inline int rt5631_reset(struct snd_soc_codec *codec)
+static int rt5631_reset(struct snd_soc_codec *codec)
 {
 	return snd_soc_write(codec, RT5631_RESET, 0);
 }
@@ -1299,32 +1296,51 @@ static int dac_event(struct snd_soc_dapm_widget *w,
 }
 
 static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
-SND_SOC_DAPM_INPUT("DMIC"),
-SND_SOC_DAPM_INPUT("MIC1"),
-SND_SOC_DAPM_INPUT("MIC2"),
-SND_SOC_DAPM_INPUT("AXIL"),
-SND_SOC_DAPM_INPUT("AXIR"),
-SND_SOC_DAPM_INPUT("MONOIN_RXN"),
-SND_SOC_DAPM_INPUT("MONOIN_RXP"),
+	/* Input Side */
+	/* Input Lines */
+	SND_SOC_DAPM_INPUT("MIC1"),
+	SND_SOC_DAPM_INPUT("MIC2"),
+	SND_SOC_DAPM_INPUT("AXIL"),
+	SND_SOC_DAPM_INPUT("AXIR"),
+	SND_SOC_DAPM_INPUT("MONOIN_RXN"),
+	SND_SOC_DAPM_INPUT("MONOIN_RXP"),
+	SND_SOC_DAPM_INPUT("DMIC"),
 
-SND_SOC_DAPM_MICBIAS("Mic Bias1", RT5631_PWR_MANAG_ADD2, 3, 0),
-SND_SOC_DAPM_MICBIAS("Mic Bias2", RT5631_PWR_MANAG_ADD2, 2, 0),
+	/* MICBIAS */
+	SND_SOC_DAPM_MICBIAS("MIC Bias1", RT5631_PWR_MANAG_ADD2,
+			RT5631_PWR_MICBIAS1_VOL_BIT, 0),
+	SND_SOC_DAPM_MICBIAS("MIC Bias2", RT5631_PWR_MANAG_ADD2,
+			RT5631_PWR_MICBIAS2_VOL_BIT, 0),
 
-SND_SOC_DAPM_PGA("Mic1 Boost", RT5631_PWR_MANAG_ADD2, 5, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Mic2 Boost", RT5631_PWR_MANAG_ADD2, 4, 0, NULL, 0),
-SND_SOC_DAPM_PGA("MONOIN_RXP Boost", RT5631_PWR_MANAG_ADD4, 7, 0, NULL, 0),
-SND_SOC_DAPM_PGA("MONOIN_RXN Boost", RT5631_PWR_MANAG_ADD4, 6, 0, NULL, 0),
-SND_SOC_DAPM_PGA("AXIL Boost", RT5631_PWR_MANAG_ADD4, 9, 0, NULL, 0),
-SND_SOC_DAPM_PGA("AXIR Boost", RT5631_PWR_MANAG_ADD4, 8, 0, NULL, 0),
-SND_SOC_DAPM_MIXER("MONO_IN", SND_SOC_NOPM, 0, 0, NULL, 0),
+	/* Boost */
+	SND_SOC_DAPM_PGA("MIC1 Boost", RT5631_PWR_MANAG_ADD2,
+			RT5631_PWR_MIC1_BOOT_GAIN_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("MIC2 Boost", RT5631_PWR_MANAG_ADD2,
+			RT5631_PWR_MIC2_BOOT_GAIN_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("MONOIN_RXP Boost", RT5631_PWR_MANAG_ADD4,
+			RT5631_PWR_MONO_IN_P_VOL_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("MONOIN_RXN Boost", RT5631_PWR_MANAG_ADD4,
+			RT5631_PWR_MONO_IN_N_VOL_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("AXIL Boost", RT5631_PWR_MANAG_ADD4,
+			RT5631_PWR_AXIL_IN_VOL_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("AXIR Boost", RT5631_PWR_MANAG_ADD4,
+			RT5631_PWR_AXIR_IN_VOL_BIT, 0, NULL, 0),
+			
+	/* MONO In */
+	SND_SOC_DAPM_MIXER("MONO_IN", SND_SOC_NOPM, 0, 0, NULL, 0),
 
-SND_SOC_DAPM_MIXER("RECMIXL Mixer", RT5631_PWR_MANAG_ADD2, 11, 0,
+	/* REC Mixer */
+	SND_SOC_DAPM_MIXER("RECMIXL Mixer", RT5631_PWR_MANAG_ADD2,
+		RT5631_PWR_RECMIXER_L_BIT, 0,
 		&rt5631_recmixl_mixer_controls[0],
 		ARRAY_SIZE(rt5631_recmixl_mixer_controls)),
-SND_SOC_DAPM_MIXER("RECMIXR Mixer", RT5631_PWR_MANAG_ADD2, 10, 0,
+	SND_SOC_DAPM_MIXER("RECMIXR Mixer", RT5631_PWR_MANAG_ADD2,
+		RT5631_PWR_RECMIXER_R_BIT, 0,
 		&rt5631_recmixr_mixer_controls[0],
 		ARRAY_SIZE(rt5631_recmixr_mixer_controls)),
-SND_SOC_DAPM_MIXER("ADC Mixer", SND_SOC_NOPM, 0, 0, NULL, 0),
+	/* Because of record duplication for L/R channel,
+	 * L/R ADCs need power up at the same time */
+	SND_SOC_DAPM_MIXER("ADC Mixer", SND_SOC_NOPM, 0, 0, NULL, 0),
 
 SND_SOC_DAPM_ADC("Left ADC", "Left ADC HIFI Capture",
 		RT5631_PWR_MANAG_ADD1, 11, 0),
@@ -1336,21 +1352,30 @@ SND_SOC_DAPM_DAC_E("Left DAC", "Left DAC HIFI Playback",
 SND_SOC_DAPM_DAC_E("Right DAC", "Right DAC HIFI Playback",
 		RT5631_PWR_MANAG_ADD1, 8, 0,
 		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
-SND_SOC_DAPM_DAC("Voice DAC", "Voice DAC Mono Playback", SND_SOC_NOPM, 0, 0),
-SND_SOC_DAPM_PGA("Voice DAC Boost", SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_DAC("Voice DAC", "Voice DAC Mono Playback",
+				SND_SOC_NOPM, 0, 0),
+	SND_SOC_DAPM_PGA("Voice DAC Boost", SND_SOC_NOPM, 0, 0, NULL, 0),
 
-SND_SOC_DAPM_MIXER("SPKMIXL Mixer", RT5631_PWR_MANAG_ADD2, 13, 0,
-		&rt5631_spkmixl_mixer_controls[0],
-		ARRAY_SIZE(rt5631_spkmixl_mixer_controls)),
-SND_SOC_DAPM_MIXER("OUTMIXL Mixer", RT5631_PWR_MANAG_ADD2, 15, 0,
-		&rt5631_outmixl_mixer_controls[0],
-		ARRAY_SIZE(rt5631_outmixl_mixer_controls)),
-SND_SOC_DAPM_MIXER("OUTMIXR Mixer", RT5631_PWR_MANAG_ADD2, 14, 0,
-		&rt5631_outmixr_mixer_controls[0],
-		ARRAY_SIZE(rt5631_outmixr_mixer_controls)),
-SND_SOC_DAPM_MIXER("SPKMIXR Mixer", RT5631_PWR_MANAG_ADD2, 12, 0,
-		&rt5631_spkmixr_mixer_controls[0],
-		ARRAY_SIZE(rt5631_spkmixr_mixer_controls)),
+	/* Left SPK Mixer */
+	SND_SOC_DAPM_MIXER("SPKMIXL Mixer", RT5631_PWR_MANAG_ADD2,
+			RT5631_PWR_SPKMIXER_L_BIT, 0,
+			&rt5631_spkmixl_mixer_controls[0],
+			ARRAY_SIZE(rt5631_spkmixl_mixer_controls)),
+	/* Left Out Mixer */
+	SND_SOC_DAPM_MIXER("OUTMIXL Mixer", RT5631_PWR_MANAG_ADD2,
+			RT5631_PWR_OUTMIXER_L_BIT, 0,
+			&rt5631_outmixl_mixer_controls[0],
+			ARRAY_SIZE(rt5631_outmixl_mixer_controls)),
+	/* Right Out Mixer */
+	SND_SOC_DAPM_MIXER("OUTMIXR Mixer", RT5631_PWR_MANAG_ADD2,
+			RT5631_PWR_OUTMIXER_R_BIT, 0,
+			&rt5631_outmixr_mixer_controls[0],
+			ARRAY_SIZE(rt5631_outmixr_mixer_controls)),
+	/* Right SPK Mixer */
+	SND_SOC_DAPM_MIXER("SPKMIXR Mixer", RT5631_PWR_MANAG_ADD2,
+			RT5631_PWR_SPKMIXER_R_BIT, 0,
+			&rt5631_spkmixr_mixer_controls[0],
+			ARRAY_SIZE(rt5631_spkmixr_mixer_controls)),
 
 SND_SOC_DAPM_PGA("Left SPK Vol", RT5631_PWR_MANAG_ADD4, 15, 0, NULL, 0),
 SND_SOC_DAPM_PGA("Right SPK Vol", RT5631_PWR_MANAG_ADD4, 14, 0, NULL, 0),
@@ -1365,27 +1390,41 @@ SND_SOC_DAPM_PGA("Right DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0),
 SND_SOC_DAPM_PGA("Left Out Vol", RT5631_PWR_MANAG_ADD4, 13, 0, NULL, 0),
 SND_SOC_DAPM_PGA("Right Out Vol", RT5631_PWR_MANAG_ADD4, 12, 0, NULL, 0),
 
-SND_SOC_DAPM_MIXER("AXO1MIX Mixer", RT5631_PWR_MANAG_ADD3, 11, 0,
-		&rt5631_AXO1MIX_mixer_controls[0],
-		ARRAY_SIZE(rt5631_AXO1MIX_mixer_controls)),
-SND_SOC_DAPM_MIXER("SPOLMIX Mixer", SND_SOC_NOPM, 0, 0,
-		&rt5631_spolmix_mixer_controls[0],
-		ARRAY_SIZE(rt5631_spolmix_mixer_controls)),
-SND_SOC_DAPM_MIXER("MONOMIX Mixer", RT5631_PWR_MANAG_ADD3, 9, 0,
-		&rt5631_monomix_mixer_controls[0],
-		ARRAY_SIZE(rt5631_monomix_mixer_controls)),
-SND_SOC_DAPM_MIXER("SPORMIX Mixer", SND_SOC_NOPM, 0, 0,
-		&rt5631_spormix_mixer_controls[0],
-		ARRAY_SIZE(rt5631_spormix_mixer_controls)),
-SND_SOC_DAPM_MIXER("AXO2MIX Mixer", RT5631_PWR_MANAG_ADD3, 10, 0,
-		&rt5631_AXO2MIX_mixer_controls[0],
-		ARRAY_SIZE(rt5631_AXO2MIX_mixer_controls)),
+	/* AXO1 Mixer */
+	SND_SOC_DAPM_MIXER("AXO1MIX Mixer", RT5631_PWR_MANAG_ADD3,
+			RT5631_PWR_AXO1MIXER_BIT, 0,
+			&rt5631_AXO1MIX_mixer_controls[0],
+			ARRAY_SIZE(rt5631_AXO1MIX_mixer_controls)),
+	/* SPOL Mixer */
+	SND_SOC_DAPM_MIXER("SPOLMIX Mixer", SND_SOC_NOPM, 0, 0,
+			&rt5631_spolmix_mixer_controls[0],
+			ARRAY_SIZE(rt5631_spolmix_mixer_controls)),
+	/* MONO Mixer */
+	SND_SOC_DAPM_MIXER("MONOMIX Mixer", RT5631_PWR_MANAG_ADD3,
+			RT5631_PWR_MONOMIXER_BIT, 0,
+			&rt5631_monomix_mixer_controls[0],
+			ARRAY_SIZE(rt5631_monomix_mixer_controls)),
+	/* SPOR Mixer */
+	SND_SOC_DAPM_MIXER("SPORMIX Mixer", SND_SOC_NOPM, 0, 0,
+			&rt5631_spormix_mixer_controls[0],
+			ARRAY_SIZE(rt5631_spormix_mixer_controls)),
+	/* AXO2 Mixer */
+	SND_SOC_DAPM_MIXER("AXO2MIX Mixer", RT5631_PWR_MANAG_ADD3,
+			RT5631_PWR_AXO2MIXER_BIT, 0,
+			&rt5631_AXO2MIX_mixer_controls[0],
+			ARRAY_SIZE(rt5631_AXO2MIX_mixer_controls)),
 
-SND_SOC_DAPM_MUX("SPOL Mux", SND_SOC_NOPM, 0, 0, &rt5631_spol_mux_control),
-SND_SOC_DAPM_MUX("SPOR Mux", SND_SOC_NOPM, 0, 0, &rt5631_spor_mux_control),
-SND_SOC_DAPM_MUX("Mono Mux", SND_SOC_NOPM, 0, 0, &rt5631_mono_mux_control),
-SND_SOC_DAPM_MUX("HPL Mux", SND_SOC_NOPM, 0, 0, &rt5631_hpl_mux_control),
-SND_SOC_DAPM_MUX("HPR Mux", SND_SOC_NOPM, 0, 0, &rt5631_hpr_mux_control),
+	/* Mux */
+	SND_SOC_DAPM_MUX("SPOL Mux", SND_SOC_NOPM, 0, 0,
+			&rt5631_spol_mux_control),
+	SND_SOC_DAPM_MUX("SPOR Mux", SND_SOC_NOPM, 0, 0,
+			&rt5631_spor_mux_control),
+	SND_SOC_DAPM_MUX("MONO Mux", SND_SOC_NOPM, 0, 0,
+			&rt5631_mono_mux_control),
+	SND_SOC_DAPM_MUX("HPL Mux", SND_SOC_NOPM, 0, 0,
+			&rt5631_hpl_mux_control),
+	SND_SOC_DAPM_MUX("HPR Mux", SND_SOC_NOPM, 0, 0,
+			&rt5631_hpr_mux_control),
 
 SND_SOC_DAPM_PGA("Mono Amp", RT5631_PWR_MANAG_ADD3, 7, 0, NULL, 0),
 SND_SOC_DAPM_PGA_E("SPKL Amp", SND_SOC_NOPM, 0, 0, NULL, 0,
@@ -1393,19 +1432,19 @@ SND_SOC_DAPM_PGA_E("SPKL Amp", SND_SOC_NOPM, 0, 0, NULL, 0,
 SND_SOC_DAPM_PGA_E("SPKR Amp", SND_SOC_NOPM, 1, 0, NULL, 0,
 		spk_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
 
-SND_SOC_DAPM_OUTPUT("AUXO1"),
-SND_SOC_DAPM_OUTPUT("AUXO2"),
-SND_SOC_DAPM_OUTPUT("SPOL"),
-SND_SOC_DAPM_OUTPUT("SPOR"),
-SND_SOC_DAPM_OUTPUT("HPOL"),
-SND_SOC_DAPM_OUTPUT("HPOR"),
-SND_SOC_DAPM_OUTPUT("MONO"),
+	/* Output Lines */
+	SND_SOC_DAPM_OUTPUT("AUXO1"),
+	SND_SOC_DAPM_OUTPUT("AUXO2"),
+	SND_SOC_DAPM_OUTPUT("SPOL"),
+	SND_SOC_DAPM_OUTPUT("SPOR"),
+	SND_SOC_DAPM_OUTPUT("HPOL"),
+	SND_SOC_DAPM_OUTPUT("HPOR"),
+	SND_SOC_DAPM_OUTPUT("MONO"),
 };
 
-
 static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
-	{"Mic1 Boost", NULL, "MIC1"},
-	{"Mic2 Boost", NULL, "MIC2"},
+	{"MIC1 Boost", NULL, "MIC1"},
+	{"MIC2 Boost", NULL, "MIC2"},
 	{"MONOIN_RXP Boost", NULL, "MONOIN_RXP"},
 	{"MONOIN_RXN Boost", NULL, "MONOIN_RXN"},
 	{"AXIL Boost", NULL, "AXIL"},
@@ -1415,12 +1454,12 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"MONO_IN", NULL, "MONOIN_RXN Boost"},
 
 	{"RECMIXL Mixer", "OUTMIXL Capture Switch", "OUTMIXL Mixer"},
-	{"RECMIXL Mixer", "MIC1_BST1 Capture Switch", "Mic1 Boost"},
+	{"RECMIXL Mixer", "MIC1_BST1 Capture Switch", "MIC1 Boost"},
 	{"RECMIXL Mixer", "AXILVOL Capture Switch", "AXIL Boost"},
 	{"RECMIXL Mixer", "MONOIN_RX Capture Switch", "MONO_IN"},
 
 	{"RECMIXR Mixer", "OUTMIXR Capture Switch", "OUTMIXR Mixer"},
-	{"RECMIXR Mixer", "MIC2_BST2 Capture Switch", "Mic2 Boost"},
+	{"RECMIXR Mixer", "MIC2_BST2 Capture Switch", "MIC2 Boost"},
 	{"RECMIXR Mixer", "AXIRVOL Capture Switch", "AXIR Boost"},
 	{"RECMIXR Mixer", "MONOIN_RX Capture Switch", "MONO_IN"},
 
@@ -1445,8 +1484,8 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"OUTMIXL Mixer", "RECMIXL Playback Switch", "RECMIXL Mixer"},
 	{"OUTMIXL Mixer", "RECMIXR Playback Switch", "RECMIXR Mixer"},
 	{"OUTMIXL Mixer", "DACL Playback Switch", "Left DAC"},
-	{"OUTMIXL Mixer", "MIC1_BST1 Playback Switch", "Mic1 Boost"},
-	{"OUTMIXL Mixer", "MIC2_BST2 Playback Switch", "Mic2 Boost"},
+	{"OUTMIXL Mixer", "MIC1_BST1 Playback Switch", "MIC1 Boost"},
+	{"OUTMIXL Mixer", "MIC2_BST2 Playback Switch", "MIC2 Boost"},
 	{"OUTMIXL Mixer", "MONOIN_RXP Playback Switch", "MONOIN_RXP Boost"},
 	{"OUTMIXL Mixer", "AXILVOL Playback Switch", "AXIL Boost"},
 	{"OUTMIXL Mixer", "AXIRVOL Playback Switch", "AXIR Boost"},
@@ -1455,8 +1494,8 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"OUTMIXR Mixer", "RECMIXL Playback Switch", "RECMIXL Mixer"},
 	{"OUTMIXR Mixer", "RECMIXR Playback Switch", "RECMIXR Mixer"},
 	{"OUTMIXR Mixer", "DACR Playback Switch", "Right DAC"},
-	{"OUTMIXR Mixer", "MIC1_BST1 Playback Switch", "Mic1 Boost"},
-	{"OUTMIXR Mixer", "MIC2_BST2 Playback Switch", "Mic2 Boost"},
+	{"OUTMIXR Mixer", "MIC1_BST1 Playback Switch", "MIC1 Boost"},
+	{"OUTMIXR Mixer", "MIC2_BST2 Playback Switch", "MIC2 Boost"},
 	{"OUTMIXR Mixer", "MONOIN_RXN Playback Switch", "MONOIN_RXN Boost"},
 	{"OUTMIXR Mixer", "AXILVOL Playback Switch", "AXIL Boost"},
 	{"OUTMIXR Mixer", "AXIRVOL Playback Switch", "AXIR Boost"},
@@ -1469,16 +1508,16 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"Right Out Vol",  NULL, "OUTMIXR Mixer"},
 	{"Right HP Vol",  NULL, "OUTMIXR Mixer"},
 
-	{"AXO1MIX Mixer", "MIC1_BST1 Playback Switch", "Mic1 Boost"},
+	{"AXO1MIX Mixer", "MIC1_BST1 Playback Switch", "MIC1 Boost"},
 	{"AXO1MIX Mixer", "OUTVOLL Playback Switch", "Left Out Vol"},
 	{"AXO1MIX Mixer", "OUTVOLR Playback Switch", "Right Out Vol"},
-	{"AXO1MIX Mixer", "MIC2_BST2 Playback Switch", "Mic2 Boost"},
+	{"AXO1MIX Mixer", "MIC2_BST2 Playback Switch", "MIC2 Boost"},
 
-	{"AXO2MIX Mixer", "MIC1_BST1 Playback Switch", "Mic1 Boost"},
+	{"AXO2MIX Mixer", "MIC1_BST1 Playback Switch", "MIC1 Boost"},
 	{"AXO2MIX Mixer", "OUTVOLL Playback Switch", "Left Out Vol"},
-	{"AXO2MIX Mixer", "OUTVOLL Playback Switch", "Right Out Vol"},
+//	{"AXO2MIX Mixer", "OUTVOLL Playback Switch", "Right Out Vol"},
 	{"AXO2MIX Mixer", "OUTVOLR Playback Switch", "Right Out Vol"},
-	{"AXO2MIX Mixer", "MIC2_BST2 Playback Switch", "Mic2 Boost"},
+	{"AXO2MIX Mixer", "MIC2_BST2 Playback Switch", "MIC2 Boost"},
 
 	{"SPOLMIX Mixer", "SPKVOLL Playback Switch", "Left SPK Vol"},
 	{"SPOLMIX Mixer", "SPKVOLR Playback Switch", "Right SPK Vol"},
@@ -1499,17 +1538,17 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"SPOR Mux", "VDAC", "Voice DAC Boost"},
 	{"SPOR Mux", "DACR", "Right DAC"},
 
-	{"Mono Mux", "MONOMIX", "MONOMIX Mixer"},
-	{"Mono Mux", "MONOIN_RX", "MONO_IN"},
-	{"Mono Mux", "VDAC", "Voice DAC Boost"},
+	{"MONO Mux", "MONOMIX", "MONOMIX Mixer"},
+	{"MONO Mux", "MONOIN_RX", "MONO_IN"},
+	{"MONO Mux", "VDAC", "Voice DAC Boost"},
 
-	{"Right DAC_HP", "NULL", "Right DAC"},
-	{"Left DAC_HP", "NULL", "Left DAC"},
+	{"Right DAC_HP", NULL, "Right DAC"},
+	{"Left DAC_HP", NULL, "Left DAC"},
 
-	{"HPL Mux", "LEFT HPVOL", "Left HP Vol"},
-	{"HPL Mux", "LEFT DAC", "Left DAC_HP"},
-	{"HPR Mux", "RIGHT HPVOL", "Right HP Vol"},
-	{"HPR Mux", "RIGHT DAC", "Right DAC_HP"},
+	{"HPL Mux", "Left HPVOL", "Left HP Vol"},
+	{"HPL Mux", "Left DAC", "Left DAC_HP"},
+	{"HPR Mux", "Right HPVOL", "Right HP Vol"},
+	{"HPR Mux", "Right DAC", "Right DAC_HP"},
 
 	{"SPKL Amp", NULL, "SPOL Mux"},
 	{"SPKR Amp", NULL, "SPOR Mux"},
@@ -1533,7 +1572,7 @@ struct coeff_clk_div {
 	u16 reg_val;
 };
 
-/* PLL divisors yes*/
+/* PLL divisors */
 struct pll_div {
 	u32 pll_in;
 	u32 pll_out;
@@ -1603,7 +1642,7 @@ static const struct pll_div codec_slave_pll_div[] = {
 	{3072000,  12288000,  0x0a90},
 };
 
-struct coeff_clk_div coeff_div[] = {
+static struct coeff_clk_div coeff_div[] = {
 	/* sysclk is 256fs */
 	{2048000,  8000 * 32,  8000, 0x1000},
 	{2048000,  8000 * 64,  8000, 0x0000},
@@ -1680,7 +1719,7 @@ static int rt5631_hifi_pcm_params(struct snd_pcm_substream *substream,
 	int timesofbclk = 64, coeff;
 	unsigned int iface = 0;
 
-	pr_debug("enter %s\n", __func__);
+	dev_dbg(codec->dev, "enter %s\n", __func__);
 
 	rt5631->bclk_rate = snd_soc_params_to_bclk(params);
 	if (rt5631->bclk_rate < 0) {
@@ -1731,7 +1770,7 @@ static int rt5631_hifi_codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	struct rt5631_priv *rt5631 = snd_soc_codec_get_drvdata(codec);
 	unsigned int iface = 0;
 
-	pr_debug("enter %s\n", __func__);
+	dev_dbg(codec->dev, "enter %s\n", __func__);
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBM_CFM:
@@ -1905,7 +1944,6 @@ static int rt5631_probe(struct snd_soc_codec *codec)
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
 		return ret;
 	}
-	codec->cache_bypass = 1;
 
 	val = rt5631_read_index(codec, RT5631_ADDA_MIXER_INTL_REG3);
 	if (val & 0x0002)
@@ -1966,9 +2004,7 @@ static int rt5631_remove(struct snd_soc_codec *codec)
 #ifdef CONFIG_PM
 static int rt5631_suspend(struct snd_soc_codec *codec)
 {
-	printk(KERN_INFO "%s+ #####\n", __func__);
 	rt5631_set_bias_level(codec, SND_SOC_BIAS_OFF);
-	printk(KERN_INFO "%s- #####\n", __func__);
 	return 0;
 }
 
@@ -1996,7 +2032,7 @@ static int rt5631_resume(struct snd_soc_codec *codec)
 			SNDRV_PCM_FMTBIT_S24_LE | \
 			SNDRV_PCM_FMTBIT_S8)
 
-static struct snd_soc_dai_ops rt5631_ops = {
+static const struct snd_soc_dai_ops rt5631_ops = {
 	.hw_params = rt5631_hifi_pcm_params,
 	.set_fmt = rt5631_hifi_codec_set_dai_fmt,
 	.set_sysclk = rt5631_hifi_codec_set_dai_sysclk,
@@ -2057,10 +2093,6 @@ static int rt5631_i2c_probe(struct i2c_client *i2c,
 	struct rt5631_priv *rt5631;
 	int ret;
 
-	printk("%s+\n", __func__);
-
-	pr_info("RT5631 Audio Codec %s\n", RT5631_VERSION);
-
 	rt5631 = devm_kzalloc(&i2c->dev, sizeof(struct rt5631_priv),
 			      GFP_KERNEL);
 	if (NULL == rt5631)
@@ -2070,8 +2102,6 @@ static int rt5631_i2c_probe(struct i2c_client *i2c,
 
 	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_rt5631,
 			rt5631_dai, ARRAY_SIZE(rt5631_dai));
-
-	printk("%s-\n", __func__);
 	return ret;
 }
 
@@ -2081,7 +2111,7 @@ static __devexit int rt5631_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
-struct i2c_driver rt5631_i2c_driver = {
+static struct i2c_driver rt5631_i2c_driver = {
 	.driver = {
 		.name = "rt5631",
 		.owner = THIS_MODULE,
