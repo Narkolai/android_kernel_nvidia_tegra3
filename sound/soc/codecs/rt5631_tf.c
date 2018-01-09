@@ -1366,12 +1366,6 @@ static int dac_event(struct snd_soc_dapm_widget *w,
 }
 
 static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
-	/* Vmid */
-	SND_SOC_DAPM_VMID("Vmid"),
-	/* PLL1 */
-	SND_SOC_DAPM_SUPPLY("PLL1", RT5631_PWR_MANAG_ADD2,
-			RT5631_PWR_PLL1_BIT, 0, NULL, 0),
-
 	/* Input Side */
 	/* Input Lines */
 	SND_SOC_DAPM_INPUT("MIC1"),
@@ -1418,35 +1412,15 @@ static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
 	 * L/R ADCs need power up at the same time */
 	SND_SOC_DAPM_MIXER("ADC Mixer", SND_SOC_NOPM, 0, 0, NULL, 0),
 
-	/* DMIC */
-	SND_SOC_DAPM_SUPPLY("DMIC Supply", RT5631_DIG_MIC_CTRL,
-		RT5631_DMIC_ENA_SHIFT, 0,
-		set_dmic_params, SND_SOC_DAPM_PRE_PMU),
-	/* ADC Data Srouce */
-	SND_SOC_DAPM_SUPPLY("Left ADC Select", RT5631_INT_ST_IRQ_CTRL_2,
-			RT5631_ADC_DATA_SEL_MIC1_SHIFT, 0, NULL, 0),
-	SND_SOC_DAPM_SUPPLY("Right ADC Select", RT5631_INT_ST_IRQ_CTRL_2,
-			RT5631_ADC_DATA_SEL_MIC2_SHIFT, 0, NULL, 0),
-
-	/* ADCs */
-	SND_SOC_DAPM_ADC("Left ADC", "HIFI Capture",
-		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_L_CLK_BIT, 0),
-	SND_SOC_DAPM_ADC("Right ADC", "HIFI Capture",
-		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_R_CLK_BIT, 0),
-
-	/* DAC and ADC supply power */
-	SND_SOC_DAPM_SUPPLY("I2S", RT5631_PWR_MANAG_ADD1,
-			RT5631_PWR_MAIN_I2S_BIT, 0, NULL, 0),
-	SND_SOC_DAPM_SUPPLY("DAC REF", RT5631_PWR_MANAG_ADD1,
-			RT5631_PWR_DAC_REF_BIT, 0, NULL, 0),
-
-	/* Output Side */
-	/* DACs */
-	SND_SOC_DAPM_DAC_E("Left DAC", "HIFI Playback",
-		RT5631_PWR_MANAG_ADD1, RT5631_PWR_DAC_L_CLK_BIT, 0,
+SND_SOC_DAPM_ADC("Left ADC", "Left ADC HIFI Capture",
+		RT5631_PWR_MANAG_ADD1, 11, 0),
+SND_SOC_DAPM_ADC("Right ADC", "Right ADC HIFI Capture",
+		RT5631_PWR_MANAG_ADD1, 10, 0),
+SND_SOC_DAPM_DAC_E("Left DAC", "Left DAC HIFI Playback",
+		RT5631_PWR_MANAG_ADD1, 9, 0,
 		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
-	SND_SOC_DAPM_DAC_E("Right DAC", "HIFI Playback",
-		RT5631_PWR_MANAG_ADD1, RT5631_PWR_DAC_R_CLK_BIT, 0,
+SND_SOC_DAPM_DAC_E("Right DAC", "Right DAC HIFI Playback",
+		RT5631_PWR_MANAG_ADD1, 8, 0,
 		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
 	SND_SOC_DAPM_DAC("Voice DAC", "Voice DAC Mono Playback",
 				SND_SOC_NOPM, 0, 0),
@@ -1564,33 +1538,13 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"RECMIXR Mixer", "AXIRVOL Capture Switch", "AXIR Boost"},
 	{"RECMIXR Mixer", "MONOIN_RX Capture Switch", "MONO_IN"},
 
-//	{"ADC Mixer", NULL, "DMIC"},
+	{"ADC Mixer", NULL, "DMIC"},
 	{"ADC Mixer", NULL, "RECMIXL Mixer"},
 	{"ADC Mixer", NULL, "RECMIXR Mixer"},
 
 	{"Left ADC", NULL, "ADC Mixer"},
-	{"Left ADC", NULL, "Left ADC Select", check_adcl_select},
-	{"Left ADC", NULL, "PLL1", check_sysclk1_source},
-	{"Left ADC", NULL, "I2S"},
-	{"Left ADC", NULL, "DAC REF"},
-
 	{"Right ADC", NULL, "ADC Mixer"},
-	{"Right ADC", NULL, "Right ADC Select", check_adcr_select},
-	{"Right ADC", NULL, "PLL1", check_sysclk1_source},
-	{"Right ADC", NULL, "I2S"},
-	{"Right ADC", NULL, "DAC REF"},
-	
-	{"DMIC", NULL, "DMIC Supply", check_dmic_used},
-	{"Left ADC", NULL, "DMIC"},
-	{"Right ADC", NULL, "DMIC"},
 
-	{"Left DAC", NULL, "PLL1", check_sysclk1_source},
-	{"Left DAC", NULL, "I2S"},
-	{"Left DAC", NULL, "DAC REF"},
-	{"Right DAC", NULL, "PLL1", check_sysclk1_source},
-	{"Right DAC", NULL, "I2S"},
-	{"Right DAC", NULL, "DAC REF"},
-	
 	{"Voice DAC Boost", NULL, "Voice DAC"},
 
 	{"SPKMIXL Mixer", NULL, "Left DAC To Mixer", check_dacl_to_spkmixl},
