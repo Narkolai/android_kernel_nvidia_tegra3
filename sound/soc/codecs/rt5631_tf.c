@@ -626,6 +626,76 @@ SOC_SINGLE_BOOL_EXT("Recording Gain", 0,
 	rt5631_get_gain, rt5631_set_gain),
 };
 
+static int check_sysclk1_source(struct snd_soc_dapm_widget *source,
+			 struct snd_soc_dapm_widget *sink)
+{
+	unsigned int reg;
+
+	reg = snd_soc_read(source->codec, RT5631_GLOBAL_CLK_CTRL);
+	return reg & RT5631_SYSCLK_SOUR_SEL_PLL;
+}
+
+static int check_dmic_used(struct snd_soc_dapm_widget *source,
+			 struct snd_soc_dapm_widget *sink)
+{
+	struct rt5631_priv *rt5631 = snd_soc_codec_get_drvdata(source->codec);
+	return rt5631->dmic_used_flag;
+}
+
+static int check_dacl_to_outmixl(struct snd_soc_dapm_widget *source,
+			 struct snd_soc_dapm_widget *sink)
+{
+	unsigned int reg;
+
+	reg = snd_soc_read(source->codec, RT5631_OUTMIXER_L_CTRL);
+	return !(reg & RT5631_M_DAC_L_TO_OUTMIXER_L);
+}
+
+static int check_dacr_to_outmixr(struct snd_soc_dapm_widget *source,
+			 struct snd_soc_dapm_widget *sink)
+{
+	unsigned int reg;
+
+	reg = snd_soc_read(source->codec, RT5631_OUTMIXER_R_CTRL);
+	return !(reg & RT5631_M_DAC_R_TO_OUTMIXER_R);
+}
+
+static int check_dacl_to_spkmixl(struct snd_soc_dapm_widget *source,
+			 struct snd_soc_dapm_widget *sink)
+{
+	unsigned int reg;
+
+	reg = snd_soc_read(source->codec, RT5631_SPK_MIXER_CTRL);
+	return !(reg & RT5631_M_DAC_L_TO_SPKMIXER_L);
+}
+
+static int check_dacr_to_spkmixr(struct snd_soc_dapm_widget *source,
+			 struct snd_soc_dapm_widget *sink)
+{
+	unsigned int reg;
+
+	reg = snd_soc_read(source->codec, RT5631_SPK_MIXER_CTRL);
+	return !(reg & RT5631_M_DAC_R_TO_SPKMIXER_R);
+}
+
+static int check_adcl_select(struct snd_soc_dapm_widget *source,
+			 struct snd_soc_dapm_widget *sink)
+{
+	unsigned int reg;
+
+	reg = snd_soc_read(source->codec, RT5631_ADC_REC_MIXER);
+	return !(reg & RT5631_M_MIC1_TO_RECMIXER_L);
+}
+
+static int check_adcr_select(struct snd_soc_dapm_widget *source,
+			 struct snd_soc_dapm_widget *sink)
+{
+	unsigned int reg;
+
+	reg = snd_soc_read(source->codec, RT5631_ADC_REC_MIXER);
+	return !(reg & RT5631_M_MIC2_TO_RECMIXER_R);
+}
+
 /**
  * onebit_depop_power_stage - auto depop in power stage.
  * @enable: power on/off
@@ -1355,6 +1425,11 @@ SND_SOC_DAPM_DAC_E("Right DAC", "Right DAC HIFI Playback",
 	SND_SOC_DAPM_DAC("Voice DAC", "Voice DAC Mono Playback",
 				SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_PGA("Voice DAC Boost", SND_SOC_NOPM, 0, 0, NULL, 0),
+	/* DAC supply power */
+	SND_SOC_DAPM_SUPPLY("Left DAC To Mixer", RT5631_PWR_MANAG_ADD1,
+			RT5631_PWR_DAC_L_TO_MIXER_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_SUPPLY("Right DAC To Mixer", RT5631_PWR_MANAG_ADD1,
+			RT5631_PWR_DAC_R_TO_MIXER_BIT, 0, NULL, 0),
 
 	/* Left SPK Mixer */
 	SND_SOC_DAPM_MIXER("SPKMIXL Mixer", RT5631_PWR_MANAG_ADD2,
@@ -1377,18 +1452,18 @@ SND_SOC_DAPM_DAC_E("Right DAC", "Right DAC HIFI Playback",
 			&rt5631_spkmixr_mixer_controls[0],
 			ARRAY_SIZE(rt5631_spkmixr_mixer_controls)),
 
-SND_SOC_DAPM_PGA("Left SPK Vol", RT5631_PWR_MANAG_ADD4, 15, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Right SPK Vol", RT5631_PWR_MANAG_ADD4, 14, 0, NULL, 0),
-SND_SOC_DAPM_PGA_E("Left HP Vol", RT5631_PWR_MANAG_ADD4, 11, 0, NULL, 0,
+SND_SOC_DAPM_PGA("Left SPKVOL Mux", RT5631_PWR_MANAG_ADD4, 15, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Right SPKVOL Mux", RT5631_PWR_MANAG_ADD4, 14, 0, NULL, 0),
+SND_SOC_DAPM_PGA_E("Left HPVOL Mux", RT5631_PWR_MANAG_ADD4, 11, 0, NULL, 0,
 		hp_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
-SND_SOC_DAPM_PGA_E("Right HP Vol", RT5631_PWR_MANAG_ADD4, 10, 0, NULL, 0,
+SND_SOC_DAPM_PGA_E("Right HPVOL Mux", RT5631_PWR_MANAG_ADD4, 10, 0, NULL, 0,
 		hp_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 
 SND_SOC_DAPM_PGA("Left DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0),
 SND_SOC_DAPM_PGA("Right DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0),
 
-SND_SOC_DAPM_PGA("Left Out Vol", RT5631_PWR_MANAG_ADD4, 13, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Right Out Vol", RT5631_PWR_MANAG_ADD4, 12, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Left HPVOL Mux", RT5631_PWR_MANAG_ADD4, 13, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Right HPVOL Mux", RT5631_PWR_MANAG_ADD4, 12, 0, NULL, 0),
 
 	/* AXO1 Mixer */
 	SND_SOC_DAPM_MIXER("AXO1MIX Mixer", RT5631_PWR_MANAG_ADD3,
@@ -1466,21 +1541,25 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"ADC Mixer", NULL, "DMIC"},
 	{"ADC Mixer", NULL, "RECMIXL Mixer"},
 	{"ADC Mixer", NULL, "RECMIXR Mixer"},
+
 	{"Left ADC", NULL, "ADC Mixer"},
 	{"Right ADC", NULL, "ADC Mixer"},
 
 	{"Voice DAC Boost", NULL, "Voice DAC"},
 
+	{"SPKMIXL Mixer", NULL, "Left DAC To Mixer", check_dacl_to_spkmixl},
 	{"SPKMIXL Mixer", "RECMIXL Playback Switch", "RECMIXL Mixer"},
 	{"SPKMIXL Mixer", "MIC1_P Playback Switch", "MIC1"},
 	{"SPKMIXL Mixer", "DACL Playback Switch", "Left DAC"},
 	{"SPKMIXL Mixer", "OUTMIXL Playback Switch", "OUTMIXL Mixer"},
 
+	{"SPKMIXR Mixer", NULL, "Right DAC To Mixer", check_dacr_to_spkmixr},
 	{"SPKMIXR Mixer", "OUTMIXR Playback Switch", "OUTMIXR Mixer"},
 	{"SPKMIXR Mixer", "DACR Playback Switch", "Right DAC"},
 	{"SPKMIXR Mixer", "MIC2_P Playback Switch", "MIC2"},
 	{"SPKMIXR Mixer", "RECMIXR Playback Switch", "RECMIXR Mixer"},
 
+	{"OUTMIXL Mixer", NULL, "Left DAC To Mixer", check_dacl_to_outmixl},
 	{"OUTMIXL Mixer", "RECMIXL Playback Switch", "RECMIXL Mixer"},
 	{"OUTMIXL Mixer", "RECMIXR Playback Switch", "RECMIXR Mixer"},
 	{"OUTMIXL Mixer", "DACL Playback Switch", "Left DAC"},
@@ -1491,6 +1570,7 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"OUTMIXL Mixer", "AXIRVOL Playback Switch", "AXIR Boost"},
 	{"OUTMIXL Mixer", "VDAC Playback Switch", "Voice DAC Boost"},
 
+	{"OUTMIXR Mixer", NULL, "Right DAC To Mixer", check_dacr_to_outmixr},
 	{"OUTMIXR Mixer", "RECMIXL Playback Switch", "RECMIXL Mixer"},
 	{"OUTMIXR Mixer", "RECMIXR Playback Switch", "RECMIXR Mixer"},
 	{"OUTMIXR Mixer", "DACR Playback Switch", "Right DAC"},
@@ -1501,32 +1581,31 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"OUTMIXR Mixer", "AXIRVOL Playback Switch", "AXIR Boost"},
 	{"OUTMIXR Mixer", "VDAC Playback Switch", "Voice DAC Boost"},
 
-	{"Left SPK Vol",  NULL, "SPKMIXL Mixer"},
-	{"Right SPK Vol",  NULL, "SPKMIXR Mixer"},
-	{"Left HP Vol",  NULL, "OUTMIXL Mixer"},
-	{"Left Out Vol",  NULL, "OUTMIXL Mixer"},
-	{"Right Out Vol",  NULL, "OUTMIXR Mixer"},
-	{"Right HP Vol",  NULL, "OUTMIXR Mixer"},
+	{"Left SPKVOL Mux",  NULL, "SPKMIXL Mixer"},
+	{"Left HPVOL Mux",  NULL, "OUTMIXL Mixer"},
+	{"Left OUTVOL Mux",  NULL, "OUTMIXL Mixer"},
+	{"Right OUTVOL Mux",  NULL, "OUTMIXR Mixer"},
+	{"Right HPVOL Mux",  NULL, "OUTMIXR Mixer"},
+	{"Right SPKVOL Mux",  NULL, "SPKMIXR Mixer"},
 
 	{"AXO1MIX Mixer", "MIC1_BST1 Playback Switch", "MIC1 Boost"},
-	{"AXO1MIX Mixer", "OUTVOLL Playback Switch", "Left Out Vol"},
-	{"AXO1MIX Mixer", "OUTVOLR Playback Switch", "Right Out Vol"},
+	{"AXO1MIX Mixer", "OUTVOLL Playback Switch", "Left OUTVOL Mux"},
+	{"AXO1MIX Mixer", "OUTVOLR Playback Switch", "Right OUTVOL Mux"},
 	{"AXO1MIX Mixer", "MIC2_BST2 Playback Switch", "MIC2 Boost"},
 
 	{"AXO2MIX Mixer", "MIC1_BST1 Playback Switch", "MIC1 Boost"},
-	{"AXO2MIX Mixer", "OUTVOLL Playback Switch", "Left Out Vol"},
-//	{"AXO2MIX Mixer", "OUTVOLL Playback Switch", "Right Out Vol"},
-	{"AXO2MIX Mixer", "OUTVOLR Playback Switch", "Right Out Vol"},
+	{"AXO2MIX Mixer", "OUTVOLL Playback Switch", "Left OUTVOL Mux"},
+	{"AXO2MIX Mixer", "OUTVOLR Playback Switch", "Right OUTVOL Mux"},
 	{"AXO2MIX Mixer", "MIC2_BST2 Playback Switch", "MIC2 Boost"},
 
-	{"SPOLMIX Mixer", "SPKVOLL Playback Switch", "Left SPK Vol"},
-	{"SPOLMIX Mixer", "SPKVOLR Playback Switch", "Right SPK Vol"},
+	{"SPOLMIX Mixer", "SPKVOLL Playback Switch", "Left SPKVOL Mux"},
+	{"SPOLMIX Mixer", "SPKVOLR Playback Switch", "Right SPKVOL Mux"},
 
-	{"SPORMIX Mixer", "SPKVOLL Playback Switch", "Left SPK Vol"},
-	{"SPORMIX Mixer", "SPKVOLR Playback Switch", "Right SPK Vol"},
+	{"SPORMIX Mixer", "SPKVOLL Playback Switch", "Left SPKVOL Mux"},
+	{"SPORMIX Mixer", "SPKVOLR Playback Switch", "Right SPKVOL Mux"},
 
-	{"MONOMIX Mixer", "OUTVOLL Playback Switch", "Left Out Vol"},
-	{"MONOMIX Mixer", "OUTVOLR Playback Switch", "Right Out Vol"},
+	{"MONOMIX Mixer", "OUTVOLL Playback Switch", "Left OUTVOL Mux"},
+	{"MONOMIX Mixer", "OUTVOLR Playback Switch", "Right OUTVOL Mux"},
 
 	{"SPOL Mux", "SPOLMIX", "SPOLMIX Mixer"},
 	{"SPOL Mux", "MONOIN_RX", "MONO_IN"},
@@ -1545,9 +1624,9 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"Right DAC_HP", NULL, "Right DAC"},
 	{"Left DAC_HP", NULL, "Left DAC"},
 
-	{"HPL Mux", "Left HPVOL", "Left HP Vol"},
+	{"HPL Mux", "Left HPVOL", "Left HPVOL Mux"},
 	{"HPL Mux", "Left DAC", "Left DAC_HP"},
-	{"HPR Mux", "Right HPVOL", "Right HP Vol"},
+	{"HPR Mux", "Right HPVOL", "Right HPVOL Mux"},
 	{"HPR Mux", "Right DAC", "Right DAC_HP"},
 
 	{"SPKL Amp", NULL, "SPOL Mux"},
