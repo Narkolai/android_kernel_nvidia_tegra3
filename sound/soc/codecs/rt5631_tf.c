@@ -1412,15 +1412,20 @@ static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
 	 * L/R ADCs need power up at the same time */
 	SND_SOC_DAPM_MIXER("ADC Mixer", SND_SOC_NOPM, 0, 0, NULL, 0),
 
-SND_SOC_DAPM_ADC("Left ADC", "Left ADC HIFI Capture",
-		RT5631_PWR_MANAG_ADD1, 11, 0),
-SND_SOC_DAPM_ADC("Right ADC", "Right ADC HIFI Capture",
-		RT5631_PWR_MANAG_ADD1, 10, 0),
-SND_SOC_DAPM_DAC_E("Left DAC", "Left DAC HIFI Playback",
-		RT5631_PWR_MANAG_ADD1, 9, 0,
+	/* ADCs */
+	SND_SOC_DAPM_ADC("Left ADC", "HIFI Capture",
+		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_L_CLK_BIT, 0),
+	SND_SOC_DAPM_ADC("Right ADC", "HIFI Capture",
+		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_R_CLK_BIT, 0),
+
+
+	/* Output Side */
+	/* DACs */
+	SND_SOC_DAPM_DAC_E("Left DAC", "HIFI Playback",
+		RT5631_PWR_MANAG_ADD1, RT5631_PWR_DAC_L_CLK_BIT, 0,
 		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
-SND_SOC_DAPM_DAC_E("Right DAC", "Right DAC HIFI Playback",
-		RT5631_PWR_MANAG_ADD1, 8, 0,
+	SND_SOC_DAPM_DAC_E("Right DAC", "HIFI Playback",
+		RT5631_PWR_MANAG_ADD1, RT5631_PWR_DAC_R_CLK_BIT, 0,
 		dac_event, SND_SOC_DAPM_POST_PMD | SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
 	SND_SOC_DAPM_DAC("Voice DAC", "Voice DAC Mono Playback",
 				SND_SOC_NOPM, 0, 0),
@@ -1459,8 +1464,9 @@ SND_SOC_DAPM_PGA_E("Left HPVOL Mux", RT5631_PWR_MANAG_ADD4, 11, 0, NULL, 0,
 SND_SOC_DAPM_PGA_E("Right HPVOL Mux", RT5631_PWR_MANAG_ADD4, 10, 0, NULL, 0,
 		hp_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 
-SND_SOC_DAPM_PGA("Left DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Right DAC_HP", SND_SOC_NOPM, 0, 0, NULL, 0),
+	/* DAC To HP */
+	SND_SOC_DAPM_PGA_S("Left DAC_HP", 0, SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_PGA_S("Right DAC_HP", 0, SND_SOC_NOPM, 0, 0, NULL, 0),
 
 SND_SOC_DAPM_PGA("Left OUTVOL Mux", RT5631_PWR_MANAG_ADD4, 13, 0, NULL, 0),
 SND_SOC_DAPM_PGA("Right OUTVOL Mux", RT5631_PWR_MANAG_ADD4, 12, 0, NULL, 0),
@@ -2037,6 +2043,8 @@ static int rt5631_probe(struct snd_soc_codec *codec)
 	msleep(80);
 	snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3, 
         RT5631_PWR_FAST_VREF_CTRL, RT5631_PWR_FAST_VREF_CTRL);
+	/* enable HP zero cross */
+	snd_soc_write(codec, RT5631_INT_ST_IRQ_CTRL_2, 0x0f18);
 
 	rt5631_reg_init(codec);
 
@@ -2089,15 +2097,7 @@ static int rt5631_suspend(struct snd_soc_codec *codec)
 
 static int rt5631_resume(struct snd_soc_codec *codec)
 {
-
-	snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
-		RT5631_PWR_VREF | RT5631_PWR_MAIN_BIAS, 
-        RT5631_PWR_VREF | RT5631_PWR_MAIN_BIAS);
-	msleep(110);
-	snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD3,
-		RT5631_PWR_FAST_VREF_CTRL, RT5631_PWR_FAST_VREF_CTRL);
-	rt5631_reg_init(codec);
-
+	rt5631_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	return 0;
 }
 #else
