@@ -223,7 +223,7 @@ static int rt5631_readable_register(struct snd_soc_codec *codec,
 	}
 }
 
-struct rt5631_init_reg {
+static struct rt5631_init_reg {
 	u8 reg;
 	u16 val;
 };
@@ -277,18 +277,18 @@ enum {
 	OPPO,
 	TREBLE,
 	BASS,
-	TF201_PAD,
+	TF201,
 	TF300TG,
 	TF700T,
 	TF300TL,
 };
 
-struct hw_eq_preset {
+static struct hw_eq_preset {
 	u16 type;
 	u16 value[22];
 	u16 ctrl;
-	u16  EqInVol;
-	u16  EqOutVol;
+	u16 EqInVol;
+	u16 EqOutVol;
 };
 
 /*
@@ -296,7 +296,7 @@ struct hw_eq_preset {
  *		0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf
  * EQ control reg : 0x6e
  */
-struct hw_eq_preset hweq_preset[] = {
+static struct hw_eq_preset hweq_preset[] = {
 	{NORMAL	, {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
 		0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
 		0x0000, 0x0000, 0x0000, 0x0000}, 0x0000, 0x8000, 0x0003},
@@ -324,7 +324,7 @@ struct hw_eq_preset hweq_preset[] = {
 	{BASS	, {0x1A43, 0x0C00, 0x0000, 0x0000, 0x0000, 0x0000,
 		0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
 		0x0000, 0x0000, 0x0000, 0x0000}, 0x0001, 0x8000, 0x0003},
-	{TF201_PAD ,{0x0264, 0xFE43, 0xC111, 0x1EF8, 0x1D18,	0xC1EC,
+	{TF201 ,{0x0264, 0xFE43, 0xC111, 0x1EF8, 0x1D18,	0xC1EC,
 		0x1E61, 0xFA19, 0xC6B1, 0x1B54, 0x0FEC, 0x0D41,
 		0x095B,0xC0B6,0x1F4C,0x1FA5},0x403F, 0x8003, 0x0004},
 	{TF300TG ,{0x1CD0,0x1D18,0xC21C,0x1E30,0xF900,0xC2C8,0x1EC4,
@@ -336,7 +336,6 @@ struct hw_eq_preset hweq_preset[] = {
 	{TF300TL ,{0x1CD0,0x1D18,0xC21C,0x1E30,0xF900,0xC2C8,0x1EC4,
                 0x095B,0xCA22,0x1C10,0x1830,0xF76D,0x0FEC,0xC130,
                 0x1ED6,0x1F69},0x403F, 0x8004, 0x0005},
-
 };
 
 static int rt5631_reg_init(struct snd_soc_codec *codec)
@@ -348,14 +347,6 @@ static int rt5631_reg_init(struct snd_soc_codec *codec)
 
 	return 0;
 }
-
-/* This can and should be reworked */
-static const char *rt5631_eq_sel[] = {"NORMAL", "CLUB", "DANCE", "LIVE", "POP",
-				"ROCK", "OPPO", "TREBLE", "BASS"};
-
-static const struct soc_enum rt5631_enum[] = {
-SOC_ENUM_SINGLE(0, 4, 9, rt5631_eq_sel),
-};
 
 static const DECLARE_TLV_DB_SCALE(out_vol_tlv, -4650, 150, 0);
 static const DECLARE_TLV_DB_SCALE(dac_vol_tlv, -95625, 375, 0);
@@ -480,11 +471,11 @@ static int rt5631_set_gain(struct snd_kcontrol *kcontrol,
 		printk("%s(): set ALC AMIC parameter\n", __func__);
 		DMIC_flag = false;
 		if(!spk_out_flag){
-			if(project_id == TEGRA3_PROJECT_TF700T){
+			if(project_id == TEGRA3_PROJECT_TF700T) {
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x000a);
 				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe090);
-			}else{
+			} else {
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x0004);
 				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe084);
@@ -497,16 +488,16 @@ static int rt5631_set_gain(struct snd_kcontrol *kcontrol,
 			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x0005);
 		else
 			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x0000);
-	}else{
+	} else {
 		#if ENABLE_ALC
 		printk("%s(): set ALC DMIC parameter\n", __func__);
 		DMIC_flag = true;
 		if(!spk_out_flag){
-			if(project_id == TEGRA3_PROJECT_TF700T){
+			if(project_id == TEGRA3_PROJECT_TF700T) {
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x000e);
 				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe099);
-			}else{
+			} else {
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x0006);
 				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe09a);
@@ -516,14 +507,21 @@ static int rt5631_set_gain(struct snd_kcontrol *kcontrol,
 		/* set dmic gain */
 			printk("%s(): use codec for capture gain\n", __func__);
 			if(project_id == TEGRA3_PROJECT_TF700T)
-			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x00ff, 0x0013);
+				snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x00ff, 0x0013);
 			else
-			snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x000f);    //boost 22.5dB
+				snd_soc_update_bits(codec, RT5631_ADC_CTRL_1, 0x001f, 0x000f);    //boost 22.5dB
 	}
 	mutex_unlock(&codec->mutex);
 
 	return ret;
 }
+
+/* EQ Mode */
+static const char *rt5631_eq_src_sel[] = {"NORMAL", "CLUB", "DANCE", "LIVE", "POP",
+				"ROCK", "OPPO", "TREBLE", "BASS"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_eq_src_enum, 4, 9, rt5631_eq_src_sel);
 
 /* MIC Input Type */
 static const char *rt5631_input_mode[] = {
@@ -592,11 +590,9 @@ static const struct snd_kcontrol_new rt5631_snd_controls[] = {
 		RT5631_L_VOL_SHIFT, RT5631_R_VOL_SHIFT,
 		RT5631_VOL_MASK, 1, out_vol_tlv),
 
-
-
 SOC_SINGLE_EXT("DMIC Capture Switch", 0, 2, 1, 0,
 	rt5631_dmic_get, rt5631_dmic_put),
-SOC_ENUM_EXT("EQ Mode", rt5631_enum[0], rt5631_eq_sel_get, rt5631_eq_sel_put),
+SOC_ENUM_EXT("EQ Mode", rt5631_eq_src_enum, rt5631_eq_sel_get, rt5631_eq_sel_put),
 SOC_SINGLE("MIC1 Mute", RT5631_ADC_REC_MIXER, 14, 1, 0),
 SOC_SINGLE("DMIC Mute Left", RT5631_DIG_MIC_CTRL, 13, 1, 0),
 SOC_SINGLE("DMIC Mute Right", RT5631_DIG_MIC_CTRL, 12, 1, 0),
@@ -1074,18 +1070,6 @@ static const struct snd_kcontrol_new rt5631_monomix_mixer_controls[] = {
 				RT5631_M_OUTVOLR_MONOMIX_BIT, 1, 1),
 };
 
-//static const struct snd_kcontrol_new rt5631_spol_mux_control =
-//SOC_DAPM_ENUM("Route", rt5631_enum[0]);
-//static const struct snd_kcontrol_new rt5631_spor_mux_control =
-//SOC_DAPM_ENUM("Route", rt5631_enum[1]);
-//static const struct snd_kcontrol_new rt5631_mono_mux_control =
-//SOC_DAPM_ENUM("Route", rt5631_enum[2]);
-
-//static const struct snd_kcontrol_new rt5631_hpl_mux_control =
-//SOC_DAPM_ENUM("Route", rt5631_enum[8]);
-//static const struct snd_kcontrol_new rt5631_hpr_mux_control =
-//SOC_DAPM_ENUM("Route", rt5631_enum[9]);
-
 static int spk_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
@@ -1130,28 +1114,28 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 			}
 		#endif
 		#if ENABLE_EQ
-			if(rt531_dac_pwr==0x3 ){
+			if(rt531_dac_pwr==0x3) {
 				  snd_soc_update_bits(codec,RT5631_PWR_MANAG_ADD1, 0x8000, 0x8000); //enable IIS interface power
-				  if(project_id == TEGRA3_PROJECT_TF201){
-						rt5631_update_eqmode(codec,TF201_PAD);
-				  }else if(project_id == TEGRA3_PROJECT_TF300TG){
-						rt5631_update_eqmode(codec,TF300TG);
-				  }else if(project_id == TEGRA3_PROJECT_TF700T){
-						rt5631_update_eqmode(codec,TF700T);
-				  }else if(project_id == TEGRA3_PROJECT_TF300TL){
-						rt5631_update_eqmode(codec,TF300TL);
-				  }else{
-						rt5631_update_eqmode(codec,TF201_PAD);
+				  if(project_id == TEGRA3_PROJECT_TF201) {
+						rt5631_update_eqmode(codec, TF201);
+				  } else if(project_id == TEGRA3_PROJECT_TF300TG) {
+						rt5631_update_eqmode(codec, TF300TG);
+				  } else if(project_id == TEGRA3_PROJECT_TF700T) {
+						rt5631_update_eqmode(codec, TF700T);
+				  } else if(project_id == TEGRA3_PROJECT_TF300TL) {
+						rt5631_update_eqmode(codec, TF300TL);
+				  } else {
+						rt5631_update_eqmode(codec, TF201);
 				  }//enable EQ after power on DAC power
 			}
 		#endif
 		if (!spkl_out_enable && !strcmp(w->name, "SPKL Amp")) {
 
-			if(project_id == TEGRA3_PROJECT_TF201){
+			if(project_id == TEGRA3_PROJECT_TF201) {
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0700);
-			}else if(project_id == TEGRA3_PROJECT_TF300TG){
+			} else if(project_id == TEGRA3_PROJECT_TF300TG){
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0700);
-			}else if(project_id == TEGRA3_PROJECT_TF700T){
+			} else if(project_id == TEGRA3_PROJECT_TF700T){
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0600);
 			}
 			if((tf700t_pcb_id == TF700T_PCB_ER1) &&
@@ -1172,9 +1156,9 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 
 			if(project_id == TEGRA3_PROJECT_TF201){
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0007);
-			}else if(project_id == TEGRA3_PROJECT_TF300TG){
+			} else if(project_id == TEGRA3_PROJECT_TF300TG){
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0007);
-			}else if(project_id == TEGRA3_PROJECT_TF700T){
+			} else if(project_id == TEGRA3_PROJECT_TF700T){
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0006);
 			}
 			if((tf700t_pcb_id == TF700T_PCB_ER1) &&
@@ -1257,9 +1241,9 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 	if(project_id == TEGRA3_PROJECT_TF700T ||
 		project_id == TEGRA3_PROJECT_TF300TG ||
 		project_id == TEGRA3_PROJECT_TF300TL){
-		rt5631_write_index(codec, 0x48, 0xF73C);
-		reg_val = rt5631_read_index(codec, 0x48);
-		printk("%s -codec index 0x48=0x%04X\n", __FUNCTION__, reg_val);
+			rt5631_write_index(codec, 0x48, 0xF73C);
+			reg_val = rt5631_read_index(codec, 0x48);
+			printk("%s -codec index 0x48=0x%04X\n", __FUNCTION__, reg_val);
 	}
 
 	return 0;
@@ -1510,7 +1494,6 @@ static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
 		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_L_CLK_BIT, 0),
 	SND_SOC_DAPM_ADC("Right ADC", "HIFI Capture",
 		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_R_CLK_BIT, 0),
-
 
 	/* Output Side */
 	/* DACs */
