@@ -349,31 +349,11 @@ static int rt5631_reg_init(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static const char *rt5631_spol_source_sel[] = {
-	"SPOLMIX", "MONOIN_RX", "VDAC", "DACL"};
-static const char *rt5631_spor_source_sel[] = {
-	"SPORMIX", "MONOIN_RX", "VDAC", "DACR"};
-static const char *rt5631_mono_source_sel[] = {"MONOMIX", "MONOIN_RX", "VDAC"};
-static const char *rt5631_input_mode_source_sel[] = {
-	"Single-end", "Differential"};
-static const char *rt5631_mic_boost[] = {"Bypass", "+20db", "+24db", "+30db",
-			"+35db", "+40db", "+44db", "+50db", "+52db"};
-static const char *rt5631_hpl_source_sel[] = {"Left HPVOL", "Left DAC"};
-static const char *rt5631_hpr_source_sel[] = {"Right HPVOL", "Right DAC"};
+/* This can and should be reworked */
 static const char *rt5631_eq_sel[] = {"NORMAL", "CLUB", "DANCE", "LIVE", "POP",
 				"ROCK", "OPPO", "TREBLE", "BASS"};
 
 static const struct soc_enum rt5631_enum[] = {
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 14, 4, rt5631_spol_source_sel),
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 10, 4, rt5631_spor_source_sel),
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 6, 3, rt5631_mono_source_sel),
-SOC_ENUM_SINGLE(RT5631_MIC_CTRL_1, 15, 2,  rt5631_input_mode_source_sel),
-SOC_ENUM_SINGLE(RT5631_MIC_CTRL_1, 7, 2,  rt5631_input_mode_source_sel),
-SOC_ENUM_SINGLE(RT5631_MONO_INPUT_VOL, 15, 2, rt5631_input_mode_source_sel),
-SOC_ENUM_SINGLE(RT5631_MIC_CTRL_2, 12, 9, rt5631_mic_boost),
-SOC_ENUM_SINGLE(RT5631_MIC_CTRL_2, 8, 9, rt5631_mic_boost),
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 3, 2, rt5631_hpl_source_sel),
-SOC_ENUM_SINGLE(RT5631_SPK_MONO_HP_OUT_CTRL, 2, 2, rt5631_hpr_source_sel),
 SOC_ENUM_SINGLE(0, 4, 9, rt5631_eq_sel),
 };
 
@@ -616,7 +596,7 @@ static const struct snd_kcontrol_new rt5631_snd_controls[] = {
 
 SOC_SINGLE_EXT("DMIC Capture Switch", 0, 2, 1, 0,
 	rt5631_dmic_get, rt5631_dmic_put),
-SOC_ENUM_EXT("EQ Mode", rt5631_enum[10], rt5631_eq_sel_get, rt5631_eq_sel_put),
+SOC_ENUM_EXT("EQ Mode", rt5631_enum[0], rt5631_eq_sel_get, rt5631_eq_sel_put),
 SOC_SINGLE("MIC1 Mute", RT5631_ADC_REC_MIXER, 14, 1, 0),
 SOC_SINGLE("DMIC Mute Left", RT5631_DIG_MIC_CTRL, 13, 1, 0),
 SOC_SINGLE("DMIC Mute Right", RT5631_DIG_MIC_CTRL, 12, 1, 0),
@@ -1094,17 +1074,17 @@ static const struct snd_kcontrol_new rt5631_monomix_mixer_controls[] = {
 				RT5631_M_OUTVOLR_MONOMIX_BIT, 1, 1),
 };
 
-static const struct snd_kcontrol_new rt5631_spol_mux_control =
-SOC_DAPM_ENUM("Route", rt5631_enum[0]);
-static const struct snd_kcontrol_new rt5631_spor_mux_control =
-SOC_DAPM_ENUM("Route", rt5631_enum[1]);
-static const struct snd_kcontrol_new rt5631_mono_mux_control =
-SOC_DAPM_ENUM("Route", rt5631_enum[2]);
+//static const struct snd_kcontrol_new rt5631_spol_mux_control =
+//SOC_DAPM_ENUM("Route", rt5631_enum[0]);
+//static const struct snd_kcontrol_new rt5631_spor_mux_control =
+//SOC_DAPM_ENUM("Route", rt5631_enum[1]);
+//static const struct snd_kcontrol_new rt5631_mono_mux_control =
+//SOC_DAPM_ENUM("Route", rt5631_enum[2]);
 
-static const struct snd_kcontrol_new rt5631_hpl_mux_control =
-SOC_DAPM_ENUM("Route", rt5631_enum[8]);
-static const struct snd_kcontrol_new rt5631_hpr_mux_control =
-SOC_DAPM_ENUM("Route", rt5631_enum[9]);
+//static const struct snd_kcontrol_new rt5631_hpl_mux_control =
+//SOC_DAPM_ENUM("Route", rt5631_enum[8]);
+//static const struct snd_kcontrol_new rt5631_hpr_mux_control =
+//SOC_DAPM_ENUM("Route", rt5631_enum[9]);
 
 static int spk_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
@@ -1365,6 +1345,119 @@ static int dac_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+/* Left SPK Volume Input */
+static const char *rt5631_spkvoll_sel[] = {"Vmid", "SPKMIXL"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_spkvoll_enum, RT5631_SPK_OUT_VOL,
+	RT5631_L_EN_SHIFT, rt5631_spkvoll_sel);
+
+static const struct snd_kcontrol_new rt5631_spkvoll_mux_control =
+	SOC_DAPM_ENUM("Left SPKVOL SRC", rt5631_spkvoll_enum);
+
+/* Left HP Volume Input */
+static const char *rt5631_hpvoll_sel[] = {"Vmid", "OUTMIXL"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_hpvoll_enum, RT5631_HP_OUT_VOL,
+	RT5631_L_EN_SHIFT, rt5631_hpvoll_sel);
+
+static const struct snd_kcontrol_new rt5631_hpvoll_mux_control =
+	SOC_DAPM_ENUM("Left HPVOL SRC", rt5631_hpvoll_enum);
+
+/* Left Out Volume Input */
+static const char *rt5631_outvoll_sel[] = {"Vmid", "OUTMIXL"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_outvoll_enum, RT5631_MONO_AXO_1_2_VOL,
+	RT5631_L_EN_SHIFT, rt5631_outvoll_sel);
+
+static const struct snd_kcontrol_new rt5631_outvoll_mux_control =
+	SOC_DAPM_ENUM("Left OUTVOL SRC", rt5631_outvoll_enum);
+
+/* Right Out Volume Input */
+static const char *rt5631_outvolr_sel[] = {"Vmid", "OUTMIXR"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_outvolr_enum, RT5631_MONO_AXO_1_2_VOL,
+	RT5631_R_EN_SHIFT, rt5631_outvolr_sel);
+
+static const struct snd_kcontrol_new rt5631_outvolr_mux_control =
+	SOC_DAPM_ENUM("Right OUTVOL SRC", rt5631_outvolr_enum);
+
+/* Right HP Volume Input */
+static const char *rt5631_hpvolr_sel[] = {"Vmid", "OUTMIXR"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_hpvolr_enum, RT5631_HP_OUT_VOL,
+	RT5631_R_EN_SHIFT, rt5631_hpvolr_sel);
+
+static const struct snd_kcontrol_new rt5631_hpvolr_mux_control =
+	SOC_DAPM_ENUM("Right HPVOL SRC", rt5631_hpvolr_enum);
+
+/* Right SPK Volume Input */
+static const char *rt5631_spkvolr_sel[] = {"Vmid", "SPKMIXR"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_spkvolr_enum, RT5631_SPK_OUT_VOL,
+	RT5631_R_EN_SHIFT, rt5631_spkvolr_sel);
+
+static const struct snd_kcontrol_new rt5631_spkvolr_mux_control =
+	SOC_DAPM_ENUM("Right SPKVOL SRC", rt5631_spkvolr_enum);
+
+/* SPO Left Channel Input */
+static const char *rt5631_spol_src_sel[] = {
+	"SPOLMIX", "MONOIN_RX", "VDAC", "DACL"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_spol_src_enum, RT5631_SPK_MONO_HP_OUT_CTRL,
+	RT5631_SPK_L_MUX_SEL_SHIFT, rt5631_spol_src_sel);
+
+static const struct snd_kcontrol_new rt5631_spol_mux_control =
+	SOC_DAPM_ENUM("SPOL SRC", rt5631_spol_src_enum);
+
+/* SPO Right Channel Input */
+static const char *rt5631_spor_src_sel[] = {
+	"SPORMIX", "MONOIN_RX", "VDAC", "DACR"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_spor_src_enum, RT5631_SPK_MONO_HP_OUT_CTRL,
+	RT5631_SPK_R_MUX_SEL_SHIFT, rt5631_spor_src_sel);
+
+static const struct snd_kcontrol_new rt5631_spor_mux_control =
+	SOC_DAPM_ENUM("SPOR SRC", rt5631_spor_src_enum);
+
+/* MONO Input */
+static const char *rt5631_mono_src_sel[] = {"MONOMIX", "MONOIN_RX", "VDAC"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_mono_src_enum, RT5631_SPK_MONO_HP_OUT_CTRL,
+	RT5631_MONO_MUX_SEL_SHIFT, rt5631_mono_src_sel);
+
+static const struct snd_kcontrol_new rt5631_mono_mux_control =
+	SOC_DAPM_ENUM("MONO SRC", rt5631_mono_src_enum);
+
+/* Left HPO Input */
+static const char *rt5631_hpl_src_sel[] = {"Left HPVOL", "Left DAC"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_hpl_src_enum, RT5631_SPK_MONO_HP_OUT_CTRL,
+	RT5631_HP_L_MUX_SEL_SHIFT, rt5631_hpl_src_sel);
+
+static const struct snd_kcontrol_new rt5631_hpl_mux_control =
+	SOC_DAPM_ENUM("HPL SRC", rt5631_hpl_src_enum);
+
+/* Right HPO Input */
+static const char *rt5631_hpr_src_sel[] = {"Right HPVOL", "Right DAC"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_hpr_src_enum, RT5631_SPK_MONO_HP_OUT_CTRL,
+	RT5631_HP_R_MUX_SEL_SHIFT, rt5631_hpr_src_sel);
+
+static const struct snd_kcontrol_new rt5631_hpr_mux_control =
+	SOC_DAPM_ENUM("HPR SRC", rt5631_hpr_src_enum);
+
+
 static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
 	/* Input Side */
 	/* Input Lines */
@@ -1464,12 +1557,12 @@ SND_SOC_DAPM_PGA_E("Left HPVOL Mux", RT5631_PWR_MANAG_ADD4, 11, 0, NULL, 0,
 SND_SOC_DAPM_PGA_E("Right HPVOL Mux", RT5631_PWR_MANAG_ADD4, 10, 0, NULL, 0,
 		hp_event, SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMU),
 
+SND_SOC_DAPM_PGA("Left OUTVOL Mux", RT5631_PWR_MANAG_ADD4, 13, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Right OUTVOL Mux", RT5631_PWR_MANAG_ADD4, 12, 0, NULL, 0),
+
 	/* DAC To HP */
 	SND_SOC_DAPM_PGA_S("Left DAC_HP", 0, SND_SOC_NOPM, 0, 0, NULL, 0),
 	SND_SOC_DAPM_PGA_S("Right DAC_HP", 0, SND_SOC_NOPM, 0, 0, NULL, 0),
-
-SND_SOC_DAPM_PGA("Left OUTVOL Mux", RT5631_PWR_MANAG_ADD4, 13, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Right OUTVOL Mux", RT5631_PWR_MANAG_ADD4, 12, 0, NULL, 0),
 
 	/* AXO1 Mixer */
 	SND_SOC_DAPM_MIXER("AXO1MIX Mixer", RT5631_PWR_MANAG_ADD3,
