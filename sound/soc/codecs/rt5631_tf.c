@@ -41,8 +41,6 @@
 #define ENABLE_EQ (1)
 #define ENABLE_ALC (1)
 
-#define RT5631_3V3_POWER_EN TEGRA_GPIO_PP0
-
 #define RT5631_VERSION "0.01 alsa 1.0.24"
 #define TF700T_PCB_ER1 (0x3)
 
@@ -63,7 +61,7 @@ static int project_id = 0;
 #if ENABLE_ALC
 static bool spk_out_flag = false;
 static bool ADC_flag = false;
-static bool DMIC_flag= true;   //heaset = false;
+static bool DMIC_flag= !false;   //heaset = false;
 #endif
 struct snd_soc_codec *rt5631_audio_codec = NULL;
 EXPORT_SYMBOL(rt5631_audio_codec) ;
@@ -256,10 +254,10 @@ static struct rt5631_init_reg init_list[] = {
 	{RT5631_SPK_MONO_OUT_CTRL	, 0x6c00},
 	{RT5631_GEN_PUR_CTRL_REG	, 0x7e00}, //Speaker AMP ratio gain is 1.99X (5.99dB)
 	{RT5631_SPK_MONO_HP_OUT_CTRL	, 0x0000},
-	{RT5631_MIC_CTRL_1        	, 0x8000}, //change Mic1 to differential mode,mic2 to single end mode
+	{RT5631_MIC_CTRL_1		, 0x8000}, //change Mic1 to differential mode,mic2 to single end mode
 	{RT5631_INT_ST_IRQ_CTRL_2	, 0x0f18},
-	{RT5631_ALC_CTRL_1	, 0x0B00}, //ALC Attack time  = 170.667ms, Recovery time = 83.333us
-	{RT5631_ALC_CTRL_3  , 0x2410}, //Enable for DAC path, Limit level = -6dBFS
+	{RT5631_ALC_CTRL_1		, 0x0B00}, //ALC Attack time  = 170.667ms, Recovery time = 83.333us
+	{RT5631_ALC_CTRL_3		, 0x2410}, //Enable for DAC path, Limit level = -6dBFS
 	{RT5631_AXO2MIXER_CTRL		, 0x8860},
 };
 #define RT5631_INIT_REG_LEN ARRAY_SIZE(init_list)
@@ -283,59 +281,29 @@ enum {
 	TF300TL,
 };
 
-static struct hw_eq_preset {
-	u16 type;
-	u16 value[22];
-	u16 ctrl;
+typedef struct _HW_EQ_PRESET {
+	u16 HwEqType;
+	u16 EqValue[22];
+	u16 HwEQCtrl;
 	u16 EqInVol;
 	u16 EqOutVol;
-};
+}HW_EQ_PRESET;
 
-/*
- * EQ param reg : 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7,
- *		0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf
- * EQ control reg : 0x6e
- */
-static struct hw_eq_preset hweq_preset[] = {
-	{NORMAL	, {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-		0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-		0x0000, 0x0000, 0x0000, 0x0000}, 0x0000, 0x8000, 0x0003},
-	{CLUB	, {0x1C10, 0x0000, 0xC1CC, 0x1E5D, 0x0699, 0xCD48,
-		0x188D, 0x0699, 0xC3B6, 0x1CD0, 0x0699, 0x0436,
-		0x0000, 0x0000, 0x0000, 0x0000}, 0x000E, 0x8000, 0x0003},
-	{DANCE	, {0x1F2C, 0x095B, 0xC071, 0x1F95, 0x0616, 0xC96E,
-		0x1B11, 0xFC91, 0xDCF2, 0x1194, 0xFAF2, 0x0436,
-		0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
-	{LIVE	, {0x1EB5, 0xFCB6, 0xC24A, 0x1DF8, 0x0E7C, 0xC883,
-		0x1C10, 0x0699, 0xDA41, 0x1561, 0x0295, 0x0436,
-		0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
-	{POP	, {0x1EB5, 0xFCB6, 0xC1D4, 0x1E5D, 0x0E23, 0xD92E,
-		0x16E6, 0xFCB6, 0x0000, 0x0969, 0xF988, 0x0436,
-		0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
-	{ROCK	, {0x1EB5, 0xFCB6, 0xC071, 0x1F95, 0x0424, 0xC30A,
-		0x1D27, 0xF900, 0x0C5D, 0x0FC7, 0x0E23, 0x0436,
-		0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
-	{OPPO	, {0x0000, 0x0000, 0xCA4A, 0x17F8, 0x0FEC, 0xCA4A,
-		0x17F8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-		0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
-	{TREBLE	, {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-		0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x188D,
-		0x1699, 0x0000, 0x0000, 0x0000}, 0x0010, 0x8000, 0x0003},
-	{BASS	, {0x1A43, 0x0C00, 0x0000, 0x0000, 0x0000, 0x0000,
-		0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
-		0x0000, 0x0000, 0x0000, 0x0000}, 0x0001, 0x8000, 0x0003},
-	{TF201 ,{0x0264, 0xFE43, 0xC111, 0x1EF8, 0x1D18,	0xC1EC,
-		0x1E61, 0xFA19, 0xC6B1, 0x1B54, 0x0FEC, 0x0D41,
-		0x095B,0xC0B6,0x1F4C,0x1FA5},0x403F, 0x8003, 0x0004},
-	{TF300TG ,{0x1CD0,0x1D18,0xC21C,0x1E30,0xF900,0xC2C8,0x1EC4,
-		0x095B,0xCA22,0x1C10,0x1830,0xF76D,0x0FEC,0xC130,
-		0x1ED6,0x1F69},0x403F, 0x8004, 0x0005},
-	{TF700T ,{0x0264, 0xFE43, 0xC0E5, 0x1F2C, 0x0C73,0xC19B,
-		0x1EB2, 0xFA19, 0xC5FC, 0x1C10, 0x095B, 0x1561,
-		0x0699,0xC18B,0x1E7F,0x1F3D},0x402A, 0x8003, 0x0005},
-	{TF300TL ,{0x1CD0,0x1D18,0xC21C,0x1E30,0xF900,0xC2C8,0x1EC4,
-                0x095B,0xCA22,0x1C10,0x1830,0xF76D,0x0FEC,0xC130,
-                0x1ED6,0x1F69},0x403F, 0x8004, 0x0005},
+static HW_EQ_PRESET HwEq_Preset[] = {
+/* EQ param reg :  0x0,    0x1,    0x2,    0x3,    0x4,    0x5,    0x6,    0x7,    0x8,    0x9,    0xA,    0xB,    0xC,    0xD,    0xE,    0xF      EQ control reg: 0x6e  */
+	{NORMAL		, {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}, 0x0000, 0x8000, 0x0003},
+	{CLUB		, {0x1C10, 0x0000, 0xC1CC, 0x1E5D, 0x0699, 0xCD48, 0x188D, 0x0699, 0xC3B6, 0x1CD0, 0x0699, 0x0436, 0x0000, 0x0000, 0x0000, 0x0000}, 0x000E, 0x8000, 0x0003},
+	{DANCE		, {0x1F2C, 0x095B, 0xC071, 0x1F95, 0x0616, 0xC96E, 0x1B11, 0xFC91, 0xDCF2, 0x1194, 0xFAF2, 0x0436, 0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
+	{LIVE		, {0x1EB5, 0xFCB6, 0xC24A, 0x1DF8, 0x0E7C, 0xC883, 0x1C10, 0x0699, 0xDA41, 0x1561, 0x0295, 0x0436, 0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
+	{POP		, {0x1EB5, 0xFCB6, 0xC1D4, 0x1E5D, 0x0E23, 0xD92E, 0x16E6, 0xFCB6, 0x0000, 0x0969, 0xF988, 0x0436, 0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
+	{ROCK		, {0x1EB5, 0xFCB6, 0xC071, 0x1F95, 0x0424, 0xC30A, 0x1D27, 0xF900, 0x0C5D, 0x0FC7, 0x0E23, 0x0436, 0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
+	{OPPO		, {0x0000, 0x0000, 0xCA4A, 0x17F8, 0x0FEC, 0xCA4A, 0x17F8, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}, 0x000F, 0x8000, 0x0003},
+	{TREBLE		, {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x188D, 0x1699, 0x0000, 0x0000, 0x0000}, 0x0010, 0x8000, 0x0003},
+	{BASS		, {0x1A43, 0x0C00, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}, 0x0001, 0x8000, 0x0003},
+	{TF201		, {0x0264, 0xFE43, 0xC111, 0x1EF8, 0x1D18, 0xC1EC, 0x1E61, 0xFA19, 0xC6B1, 0x1B54, 0x0FEC, 0x0D41, 0x095B, 0xC0B6, 0x1F4C, 0x1FA5}, 0x403F, 0x8003, 0x0004},
+	{TF300TG	, {0x1CD0, 0x1D18, 0xC21C, 0x1E30, 0xF900, 0xC2C8, 0x1EC4, 0x095B, 0xCA22, 0x1C10, 0x1830, 0xF76D, 0x0FEC, 0xC130, 0x1ED6, 0x1F69}, 0x403F, 0x8004, 0x0005},
+	{TF700T 	, {0x0264, 0xFE43, 0xC0E5, 0x1F2C, 0x0C73, 0xC19B, 0x1EB2, 0xFA19, 0xC5FC, 0x1C10, 0x095B, 0x1561, 0x0699, 0xC18B, 0x1E7F, 0x1F3D}, 0x402A, 0x8003, 0x0005},
+	{TF300TL	, {0x1CD0, 0x1D18, 0xC21C, 0x1E30, 0xF900, 0xC2C8, 0x1EC4, 0x095B, 0xCA22, 0x1C10, 0x1830, 0xF76D, 0x0FEC, 0xC130, 0x1ED6, 0x1F69}, 0x403F, 0x8004, 0x0005},
 };
 
 static int rt5631_reg_init(struct snd_soc_codec *codec)
@@ -397,16 +365,16 @@ static int rt5631_eq_sel_get(struct snd_kcontrol *kcontrol,
 
 static void rt5631_update_eqmode(struct snd_soc_codec *codec, int mode)
 {
-	int i;
+	u16 HwEqIndex;
 
 	if (NORMAL == mode) {
 		/* In Normal mode, the EQ parameter is cleared,
 		 * and hardware LP, BP1, BP2, BP3, HP1, HP2
 		 * block control and EQ block are disabled.
 		 */
-		for (i = RT5631_EQ_BW_LOP; i <= RT5631_EQ_HPF_GAIN; i++)
-			rt5631_write_index(codec, i,
-				hweq_preset[mode].value[i]);
+		for (HwEqIndex = RT5631_EQ_BW_LOP; HwEqIndex <= RT5631_EQ_HPF_GAIN; HwEqIndex++)
+			rt5631_write_index(codec, HwEqIndex,
+				HwEq_Preset[mode].EqValue[HwEqIndex]);
 		snd_soc_update_bits(codec, RT5631_EQ_CTRL, 0x003f, 0x0000);
 		rt5631_write_index_mask(codec, RT5631_EQ_PRE_VOL_CTRL, 
 				0x0000, 0x8000);
@@ -416,16 +384,16 @@ static void rt5631_update_eqmode(struct snd_soc_codec *codec, int mode)
 		 */
 		snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD1, 
 			RT5631_PWR_ADC_L_CLK, RT5631_PWR_ADC_L_CLK);
-		rt5631_write_index_mask(codec, RT5631_EQ_PRE_VOL_CTRL
-						, 0x8000, 0x8000);
-		snd_soc_write(codec, RT5631_EQ_CTRL,0x8000);
-		for (i = RT5631_EQ_BW_LOP; i <= RT5631_EQ_HPF_GAIN; i++)
-			rt5631_write_index(codec, i,
-				hweq_preset[mode].value[i]);
-		rt5631_write_index(codec, RT5631_EQ_PRE_VOL_CTRL, hweq_preset[mode].EqInVol); //set EQ input volume
-		rt5631_write_index(codec, RT5631_EQ_POST_VOL_CTRL, hweq_preset[mode].EqOutVol); //set EQ output volume
-		snd_soc_write(codec, RT5631_EQ_CTRL, hweq_preset[mode].ctrl | 0xc000);
-		if((hweq_preset[mode].ctrl & 0x8000))
+		rt5631_write_index_mask(codec, RT5631_EQ_PRE_VOL_CTRL,
+					0x8000, 0x8000);
+		snd_soc_write(codec, RT5631_EQ_CTRL, 0x8000);
+		for (HwEqIndex = RT5631_EQ_BW_LOP; HwEqIndex <= RT5631_EQ_HPF_GAIN; HwEqIndex++)
+			rt5631_write_index(codec, HwEqIndex,
+				HwEq_Preset[mode].EqValue[HwEqIndex]);
+		rt5631_write_index(codec, RT5631_EQ_PRE_VOL_CTRL, HwEq_Preset[mode].EqInVol); //set EQ input volume
+		rt5631_write_index(codec, RT5631_EQ_POST_VOL_CTRL, HwEq_Preset[mode].EqOutVol); //set EQ output volume
+		snd_soc_write(codec, RT5631_EQ_CTRL, HwEq_Preset[mode].HwEQCtrl | 0xc000);
+		if((HwEq_Preset[mode].HwEQCtrl & 0x8000))
 			snd_soc_update_bits(codec, RT5631_EQ_CTRL, 0xc000, 0x8000);
 		else
 			snd_soc_update_bits(codec, RT5631_EQ_CTRL, 0xc000, 0x0000);
@@ -491,7 +459,7 @@ static int rt5631_set_gain(struct snd_kcontrol *kcontrol,
 	} else {
 		#if ENABLE_ALC
 		printk("%s(): set ALC DMIC parameter\n", __func__);
-		DMIC_flag = true;
+		DMIC_flag = !false;
 		if(!spk_out_flag){
 			if(project_id == TEGRA3_PROJECT_TF700T) {
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
@@ -539,6 +507,13 @@ static const SOC_ENUM_SINGLE_DECL(
 static const SOC_ENUM_SINGLE_DECL(
 	rt5631_monoin_mode_enum, RT5631_MONO_INPUT_VOL,
 	RT5631_MONO_DIFF_INPUT_SHIFT, rt5631_input_mode);
+/* SPK Ratio Gain Control */
+static const char *rt5631_spk_ratio[] = {"1.00x", "1.09x", "1.27x", "1.44x",
+			"1.56x", "1.68x", "1.99x", "2.34x"};
+
+static const SOC_ENUM_SINGLE_DECL(
+	rt5631_spk_ratio_enum, RT5631_GEN_PUR_CTRL_REG,
+	RT5631_SPK_AMP_RATIO_CTRL_SHIFT, rt5631_spk_ratio);
 
 static const struct snd_kcontrol_new rt5631_snd_controls[] = {
 	/* MIC */
@@ -590,8 +565,15 @@ static const struct snd_kcontrol_new rt5631_snd_controls[] = {
 		RT5631_L_VOL_SHIFT, RT5631_R_VOL_SHIFT,
 		RT5631_VOL_MASK, 1, out_vol_tlv),
 
+	/* DMIC */
+	SOC_SINGLE_EXT("DMIC Switch", 0, 0, 1, 0,
+		rt5631_dmic_get, rt5631_dmic_put),
+	SOC_DOUBLE("DMIC Capture Switch", RT5631_DIG_MIC_CTRL,
+		RT5631_DMIC_L_CH_MUTE_SHIFT,
+		RT5631_DMIC_R_CH_MUTE_SHIFT, 1, 1),
+/*
 SOC_SINGLE_EXT("DMIC Capture Switch", 0, 2, 1, 0,
-	rt5631_dmic_get, rt5631_dmic_put),
+	rt5631_dmic_get, rt5631_dmic_put),*/
 SOC_ENUM_EXT("EQ Mode", rt5631_eq_src_enum, rt5631_eq_sel_get, rt5631_eq_sel_put),
 SOC_SINGLE("MIC1 Mute", RT5631_ADC_REC_MIXER, 14, 1, 0),
 SOC_SINGLE("DMIC Mute Left", RT5631_DIG_MIC_CTRL, 13, 1, 0),
@@ -600,6 +582,8 @@ SOC_SINGLE("DMIC Mute Right", RT5631_DIG_MIC_CTRL, 12, 1, 0),
 /* Set recording gain */
 SOC_SINGLE_BOOL_EXT("Recording Gain", 0,
 	rt5631_get_gain, rt5631_set_gain),
+/* SPK Ratio Gain Control */
+SOC_ENUM("SPK Ratio Control", rt5631_spk_ratio_enum),
 };
 
 static int check_sysclk1_source(struct snd_soc_dapm_widget *source,
@@ -1080,13 +1064,13 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 	unsigned int reg_val;
 
 	tf700t_pcb_id = tegra3_query_pcba_revision_pcbid();
-	rt531_dac_pwr = (snd_soc_read(codec, RT5631_PWR_MANAG_ADD1) & 0x0300)>>8;
+	rt531_dac_pwr = (snd_soc_read(codec, RT5631_PWR_MANAG_ADD1) & 0x0300) >> 8;
 
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		#if ENABLE_ALC
 			printk("spk_event --ALC_SND_SOC_DAPM_POST_PMU\n");
-			spk_out_flag = true;
+			spk_out_flag = !false;
 			/* Enable ALC */
 			switch (project_id) {
 			case TEGRA3_PROJECT_TF201:
@@ -1114,7 +1098,7 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 			}
 		#endif
 		#if ENABLE_EQ
-			if(rt531_dac_pwr==0x3) {
+			if(rt531_dac_pwr == 0x3) {
 				  snd_soc_update_bits(codec,RT5631_PWR_MANAG_ADD1, 0x8000, 0x8000); //enable IIS interface power
 				  if(project_id == TEGRA3_PROJECT_TF201) {
 						rt5631_update_eqmode(codec, TF201);
@@ -1133,9 +1117,9 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 
 			if(project_id == TEGRA3_PROJECT_TF201) {
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0700);
-			} else if(project_id == TEGRA3_PROJECT_TF300TG){
+			} else if(project_id == TEGRA3_PROJECT_TF300TG) {
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0700);
-			} else if(project_id == TEGRA3_PROJECT_TF700T){
+			} else if(project_id == TEGRA3_PROJECT_TF700T) {
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0600);
 			}
 			if((tf700t_pcb_id == TF700T_PCB_ER1) &&
@@ -1154,15 +1138,15 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 		}
 		if (!spkr_out_enable && !strcmp(w->name, "SPKR Amp")) {
 
-			if(project_id == TEGRA3_PROJECT_TF201){
+			if(project_id == TEGRA3_PROJECT_TF201) {
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0007);
-			} else if(project_id == TEGRA3_PROJECT_TF300TG){
+			} else if(project_id == TEGRA3_PROJECT_TF300TG) {
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0007);
-			} else if(project_id == TEGRA3_PROJECT_TF700T){
+			} else if(project_id == TEGRA3_PROJECT_TF700T) {
 				snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x0006);
 			}
 			if((tf700t_pcb_id == TF700T_PCB_ER1) &&
-				(project_id == TEGRA3_PROJECT_TF700T)){
+				(project_id == TEGRA3_PROJECT_TF700T)) {
                 snd_soc_update_bits(codec, RT5631_SPK_OUT_VOL, RT5631_VOL_MASK, 0x000d);
                 printk("%s: %s\n", __func__, "TF700T ER1 spk R ch vol = -7.5dB");
 			}
@@ -1201,25 +1185,25 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 		#if ENABLE_ALC
 		printk("spk_event --ALC_SND_SOC_DAPM_PRE_PMD\n");
 		spk_out_flag = false;
-		if(!spk_out_flag && !ADC_flag){
+		if(!spk_out_flag && !ADC_flag) {
 			//Disable ALC
 			snd_soc_update_bits(codec, RT5631_ALC_CTRL_3, 0xf000, 0x2000);
-		}else if(!spk_out_flag && DMIC_flag ){
-			if(project_id == TEGRA3_PROJECT_TF700T){
+		} else if(!spk_out_flag && DMIC_flag ) {
+			if(project_id == TEGRA3_PROJECT_TF700T) {
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x000e);
 				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe099);
-			}else{
+			} else {
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x0006);
 				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe09a);
 			}
-		}else if(!spk_out_flag && !DMIC_flag ){
-			if(project_id == TEGRA3_PROJECT_TF700T){
+		} else if(!spk_out_flag && !DMIC_flag ) {
+			if(project_id == TEGRA3_PROJECT_TF700T) {
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x000a);
 				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe090);
-			}else{
+			} else {
 				snd_soc_write(codec, RT5631_ALC_CTRL_1, 0x0207);
 				snd_soc_write(codec, RT5631_ALC_CTRL_2, 0x0004);
 				snd_soc_write(codec, RT5631_ALC_CTRL_3, 0xe084);
@@ -1228,7 +1212,7 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 		#endif
 		#if ENABLE_EQ
 			printk("spk_event --EQ_SND_SOC_DAPM_PRE_PMD\n");
-		if (rt531_dac_pwr==0x3){
+		if(rt531_dac_pwr == 0x3) {
 			rt5631_update_eqmode(codec,NORMAL);    //disable EQ before powerdown speaker power
 		}
 		#endif
@@ -1239,11 +1223,11 @@ static int spk_event(struct snd_soc_dapm_widget *w,
 	}
 
 	if(project_id == TEGRA3_PROJECT_TF700T ||
-		project_id == TEGRA3_PROJECT_TF300TG ||
-		project_id == TEGRA3_PROJECT_TF300TL){
-			rt5631_write_index(codec, 0x48, 0xF73C);
-			reg_val = rt5631_read_index(codec, 0x48);
-			printk("%s -codec index 0x48=0x%04X\n", __FUNCTION__, reg_val);
+	   project_id == TEGRA3_PROJECT_TF300TG ||
+	   project_id == TEGRA3_PROJECT_TF300TL) {
+		rt5631_write_index(codec, 0x48, 0xF73C);
+		reg_val = rt5631_read_index(codec, 0x48);
+		printk("%s -codec index 0x48=0x%04X\n", __FUNCTION__, reg_val);
 	}
 
 	return 0;
@@ -1274,7 +1258,7 @@ static int config_common_power(struct snd_soc_codec *codec, bool pmu)
 		if (rt5631->pll_used_flag)
 			snd_soc_update_bits(codec, RT5631_PWR_MANAG_ADD2,
 						RT5631_PWR_PLL1, RT5631_PWR_PLL1);
-	} else{
+	} else {
 		ref_count--;
 		if(ref_count == 0){
 			printk("%s: Real powr down, ref_count = 0\n", __func__);
@@ -1307,8 +1291,8 @@ static int dac_event(struct snd_soc_dapm_widget *w,
 
 	case SND_SOC_DAPM_PRE_PMU:
 		if (!pmu) {
-			config_common_power(codec, true);
-			pmu = true;
+			config_common_power(codec, !false);
+			pmu = !false;
 		}
 		break;
 
@@ -1443,7 +1427,12 @@ static const struct snd_kcontrol_new rt5631_hpr_mux_control =
 
 
 static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
-	/* Input Side */
+	/* PLL1 */
+    	SND_SOC_DAPM_SUPPLY("PLL1", RT5631_PWR_MANAG_ADD2,
+    			RT5631_PWR_PLL1_BIT, 0, NULL, 0),
+
+
+        /* Input Side */
 	/* Input Lines */
 	SND_SOC_DAPM_INPUT("MIC1"),
 	SND_SOC_DAPM_INPUT("MIC2"),
@@ -1489,11 +1478,27 @@ static const struct snd_soc_dapm_widget rt5631_dapm_widgets[] = {
 	 * L/R ADCs need power up at the same time */
 	SND_SOC_DAPM_MIXER("ADC Mixer", SND_SOC_NOPM, 0, 0, NULL, 0),
 
+	/* DMIC */
+	SND_SOC_DAPM_SUPPLY("DMIC Supply", RT5631_DIG_MIC_CTRL,
+		RT5631_DMIC_ENA_SHIFT, 0,
+		set_dmic_params, SND_SOC_DAPM_PRE_PMU),
+	/* ADC Data Srouce */
+	SND_SOC_DAPM_SUPPLY("Left ADC Select", RT5631_INT_ST_IRQ_CTRL_2,
+			RT5631_ADC_DATA_SEL_MIC1_SHIFT, 0, NULL, 0),
+	SND_SOC_DAPM_SUPPLY("Right ADC Select", RT5631_INT_ST_IRQ_CTRL_2,
+			RT5631_ADC_DATA_SEL_MIC2_SHIFT, 0, NULL, 0),
+
 	/* ADCs */
 	SND_SOC_DAPM_ADC("Left ADC", "HIFI Capture",
 		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_L_CLK_BIT, 0),
 	SND_SOC_DAPM_ADC("Right ADC", "HIFI Capture",
 		RT5631_PWR_MANAG_ADD1, RT5631_PWR_ADC_R_CLK_BIT, 0),
+
+	/* DAC and ADC supply power */
+	SND_SOC_DAPM_SUPPLY("I2S", RT5631_PWR_MANAG_ADD1,
+			RT5631_PWR_MAIN_I2S_BIT, 0, NULL, 0),
+	SND_SOC_DAPM_SUPPLY("DAC REF", RT5631_PWR_MANAG_ADD1,
+			RT5631_PWR_DAC_REF_BIT, 0, NULL, 0),
 
 	/* Output Side */
 	/* DACs */
@@ -1620,12 +1625,29 @@ static const struct snd_soc_dapm_route rt5631_dapm_routes[] = {
 	{"RECMIXR Mixer", "AXIRVOL Capture Switch", "AXIR Boost"},
 	{"RECMIXR Mixer", "MONOIN_RX Capture Switch", "MONO_IN"},
 
-	{"ADC Mixer", NULL, "DMIC"},
+//	{"ADC Mixer", NULL, "DMIC"},
 	{"ADC Mixer", NULL, "RECMIXL Mixer"},
 	{"ADC Mixer", NULL, "RECMIXR Mixer"},
 
 	{"Left ADC", NULL, "ADC Mixer"},
+	{"Left ADC", NULL, "Left ADC Select", check_adcl_select},
+	{"Left ADC", NULL, "PLL1", check_sysclk1_source},
+	{"Left ADC", NULL, "I2S"},
+	{"Left ADC", NULL, "DAC REF"},
+
 	{"Right ADC", NULL, "ADC Mixer"},
+	{"Right ADC", NULL, "Right ADC Select", check_adcr_select},
+	{"Right ADC", NULL, "I2S"},
+	{"Right ADC", NULL, "DAC REF"},
+
+	{"DMIC", NULL, "DMIC Supply", check_dmic_used},
+	{"Left ADC", NULL, "DMIC"},
+	{"Right ADC", NULL, "DMIC"},
+
+	{"Left DAC", NULL, "I2S"},
+	{"Left DAC", NULL, "DAC REF"},
+	{"Right DAC", NULL, "I2S"},
+	{"Right DAC", NULL, "DAC REF"},
 
 	{"Voice DAC Boost", NULL, "Voice DAC"},
 
@@ -1780,8 +1802,8 @@ static const struct pll_div codec_master_pll_div[] = {
 static const struct pll_div codec_slave_pll_div[] = {
 	{256000,  2048000,  0x46f0},
 	{256000,  4096000,  0x3ea0},
-	{352800,	 5644800,  0x3ea0},
-	{512000,	 8192000,  0x3ea0},
+	{352800,  5644800,  0x3ea0},
+	{512000,  8192000,  0x3ea0},
 	{1024000,  8192000,  0x46f0},
 	{705600,  11289600,  0x3ea0},
 	{1024000,  16384000,  0x3ea0},
@@ -2278,22 +2300,20 @@ static struct i2c_driver rt5631_i2c_driver = {
 
 static int codec_3v3_power_switch_init(void)
 {
-	u32 project_info = tegra3_get_project_id();
 	int ret = 0;
 
-    printk("%s\n", __func__);
-
-	if(project_info == TEGRA3_PROJECT_TF700T){
-		ret = gpio_request(RT5631_3V3_POWER_EN, "rt5631_3v3_power_control");
-		if(ret < 0){
-			printk("rt5631_3v3_power_control: request rt5631_3v3_power_control fail! : %d\n", ret);
+	if(tegra3_get_project_id() == TEGRA3_PROJECT_TF700T) {
+		ret = gpio_request(TEGRA_GPIO_PP0, "rt5631_3v3_power_control");
+		if(!ret) {
+			ret = gpio_direction_output(TEGRA_GPIO_PP0, 1);
+			if(ret < 0) {
+				gpio_free(TEGRA_GPIO_PP0);
+				pr_err("%s: error in setting rt5631_3v3_power_control as output\n", __func__);
+			}
+		} else {
+			pr_err("%s: error in gpio request for rt5631_3v3_power_control\n", __func__);
 			return ret;
 		}
-		ret = gpio_direction_output(RT5631_3V3_POWER_EN, 1);
-		if(ret < 0){
-			printk("rt5631_3v3_power_control: set rt5631_3v3_power_control as output fail! : %d\n", ret);
-		}
-		gpio_free(RT5631_3V3_POWER_EN);
 	}
 	return ret;
 }
@@ -2304,7 +2324,6 @@ static int __init rt5631_modinit(void)
 	printk(KERN_INFO "%s+ #####\n", __func__);
 
 	codec_3v3_power_switch_init();
-
 	ret = i2c_add_driver(&rt5631_i2c_driver);
 
 	printk(KERN_INFO "%s- #####\n", __func__);
